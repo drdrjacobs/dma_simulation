@@ -1,0 +1,28 @@
+# The simulation uses reduced units in terms of the ion radius, a, for length 
+# and the diffusion constant, D. This means the time unit is a^2 / D.
+#
+# Parameter type is type of that parameter in the simulation
+# required, but for reference only
+#
+# scientific notation okay for floats
+
+# std::string restart_path = restart_100000.ser
+
+# either 2d or 3d simulation
+int dimension = 2
+
+# in terms of number of added particles
+int write_frame_interval = 100
+# size of cluster to end simulation at
+# scientific notation okay for this int
+int cluster_size = 2e6
+
+# length of particle movement in 3D
+# setting this sets timestep implicitly
+float step_size = 1.0
+# fraction of max sticking rate, kappa, to run at
+# setting this to 1 means the probability of sticking on contact will be 1
+float fraction_max_kappa = 1
+
+# seeds rng
+int seed = 0
