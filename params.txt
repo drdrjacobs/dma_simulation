@@ -8,9 +8,6 @@
 
 # std::string restart_path = restart_100000.ser
 
-# either 2d or 3d simulation
-int dimension = 2
-
 # in terms of number of added particles
 int write_frame_interval = 100
 # size of cluster to end simulation at

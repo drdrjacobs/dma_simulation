@@ -17,8 +17,8 @@ BOOST_INC_PATH = $(BOOST_PATH)/include
 BOOST_LIB_PATH = $(BOOST_PATH)/lib
 
 GPP = g++
-FLAGS = -Wall -D_REENTRANT -std=c++11 -pthread -O3
-INCLUDE = -I$(CUDA_INC_PATH) -I$(BOOST_INC_PATH)
+FLAGS = -g -Wall -std=c++11 -pthread -O0
+INCLUDE = -I$(BOOST_INC_PATH)
 
 # -----------------------------------------------------------------------------
 # Object files
@@ -31,15 +31,24 @@ CPP_OBJ = $(addprefix $(OBJDIR)/, $(addsuffix .o, $(CPP_FILES)))
 # Make rules
 # -----------------------------------------------------------------------------
 
-# Top level rules
-all: ga_simulation
+LINK = $(GPP) $(FLAGS) -o $(BINDIR)/$@ $(INCLUDE) $^
 
-ga_simulation: $(CPP_OBJ)
-	$(GPP) $(FLAGS) -o $(BINDIR)/$@ $(INCLUDE) $^
+# Top level rules
+ga_simulation_2d: DIMENSIONS = 2
+ga_simulation_2d: $(CPP_OBJ) 
+	$(LINK)
+
+ga_simulation_3d: DIMENSIONS = 3
+ga_simulation_3d: $(CPP_OBJ) 
+	$(LINK)
 
 # Compile C++ Source Files
 $(CPP_OBJ): $(OBJDIR)/%.o : $(SRCDIR)/%
 	$(GPP) $(FLAGS) -c -o $@ $(INCLUDE) $<
+
+# Custom rule to define dimension, force this to always update
+$(OBJDIR)/simulation.cpp.o: $(OBJDIR)/%.o : $(SRCDIR)/%
+	$(GPP) $(FLAGS) -DDIMENSIONS=$(DIMENSIONS) -c -o $@ $(INCLUDE) $<
 
 # Clean everything including temporary Emacs files
 clean:

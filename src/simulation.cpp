@@ -13,18 +13,19 @@
 
 // nanoflann library for distance computations
 #include "nanoflann.hpp"
-#include "utils.h"
-
-#include "simulation.hpp"
+#include "KDTreeVectorOfVectorsAdaptor.h"
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
-
-// include this header to serialize vectors
 #include <boost/serialization/vector.hpp>
 
+#include "simulation.hpp"
+
 // define globals
+const int Simulation::kDims = DIMENSIONS;
 const std::string Simulation::kParamsFilename = "params.txt";
+typedef KDTreeVectorOfVectorsAdaptor<std::vector<std::vector<float>>, 
+				     float, Simulation::kDims> KDTree;
 
 /// @brief Constructor starts simulation.
 ///
@@ -85,7 +86,6 @@ std::string Simulation::initialize_params() {
 	restart_path = "";
     }
 
-    dimension_ = std::stoi(params_map["dimension"]);
     step_size_ = std::stof(params_map["step_size"]);
     write_frame_interval_ = std::stoi(params_map["write_frame_interval"]);
     cluster_size_ = static_cast <int> (std::stof(params_map["cluster_size"]));
@@ -97,8 +97,8 @@ std::string Simulation::initialize_params() {
     // in one dimensional Brownian motion, the length of paticle step is 
     // sqrt(2 dt), where dt is the time in reduced units, (so effectively 
     // D = 1)
-    // step_size_ = sqrt(2 * dimension_ * dt_), 
-    // dt = step_size_^2 / 2 * dimension_
+    // step_size_ = sqrt(2 * kDims * dt_), 
+    // dt = step_size_^2 / 2 * kDims
     //
     // p_max = kappa_max * sqrt(dt) = 1.0 
     // kappa_max = p_max / sqrt(dt) = 1.0 / sqrt(dt)
@@ -111,7 +111,7 @@ std::string Simulation::initialize_params() {
     std::cout << "p_ = fraction_max_kappa = " << p_ << std::endl;
     
     // kappa = p_ / sqrt(dt) 
-    float kappa = p_ * std::sqrt(2 * dimension_) / step_size_;
+    float kappa = p_ * std::sqrt(2 * kDims) / step_size_;
     std::cout << "da = kappa^2 = " << std::pow(kappa, 2) << std::endl;
     return restart_path;
 }
@@ -119,66 +119,49 @@ std::string Simulation::initialize_params() {
 /// @brief Coordinates running simulation.
 ///
 void Simulation::run_simulation() {
+    std::cout << "DIMENSION = " << kDims << std::endl;
     std::string restart_path = initialize_params();
 
-    PointCloud<float> cloud;
-    // construct a kd-tree index:
+    std::vector<std::vector<float>> plated;
+    
+    // optimization parameter
     int max_leaf_size = 10;
-    /*
-    nanoflann::KDTreeSingleIndexDynamicAdaptor
-	<nanoflann::L2_Simple_Adaptor<float, PointCloud<float>>,
-	 PointCloud<float>,
-	 dimension_> kd_tree(dimension_, cloud, 
-			     nanoflann::KDTreeSingleIndexAdaptorParams(max_leaf_size));
-    */
+    KDTree kd_tree(kDims, plated, max_leaf_size);
+
     if (!restart_path.empty()) {
 	std::cout << "Restarting from file " << restart_path << std::endl;
         // load_state(setup_params.restart_path);
     }
     else {
-
-    }
-    /*
-    // Generate points:
-    generateRandomPointCloud(cloud, N);
-
-    num_t query_pt[3] = { 0.5, 0.5, 0.5 };
-    // add points in chunks at a time
-    size_t chunk_size = 100;
-    for(size_t i = 0; i < N; i = i + chunk_size) {
-	size_t end = min(size_t(i + chunk_size), N - 1);
-	// Inserts all points from [i, end]
-	index.addPoints(i, end);
+	// add single plated at origin to start
+	plated.resize(1);
+	plated.at(0).resize(kDims);
+	for (int i = 0; i < kDims; i++) {
+	    plated.at(0).at(i) = 0;
+	}
+	(*kd_tree.index).addPoints(0, 0);
     }
 
-    dump_mem_usage();
-    {
-        // do a knn search
-        const size_t num_results = 1;
-        size_t ret_index;
-        num_t out_dist_sqr;
-	nanoflann::KNNResultSet<num_t> resultSet(num_results);
-        resultSet.init(&ret_index, &out_dist_sqr );
-        index.findNeighbors(resultSet, query_pt, nanoflann::SearchParams(10));
-
-	std::cout << "knnSearch(nn="<<num_results<<"): \n";
-	std::cout << "ret_index=" << ret_index << " out_dist_sqr=" << 
-	    out_dist_sqr << endl;
+    std::vector<float> query_pt(kDims);
+    for (int i = 0; i < kDims; i++) {
+	query_pt.at(i) = i + 1;
     }
-    {
-        // Unsorted radius search:
-        const num_t radius = 1;
-	std::vector<std::pair<size_t, num_t> > indices_dists;
-        RadiusResultSet<num_t, size_t> resultSet(radius, indices_dists);
 
-        index.findNeighbors(resultSet, query_pt, nanoflann::SearchParams());
+    // do a knn search
+    const size_t num_results = 1;
+    std::vector<size_t> ret_indexes(num_results);
+    std::vector<double> out_dists_sqr(num_results);
 
-        // Get worst (furthest) point, without sorting:
-	std::pair<size_t,num_t> worst_pair = resultSet.worst_item();
-        cout << "Worst pair: idx=" << worst_pair.first << " dist=" << 
-	    worst_pair.second << endl;
-    }
-    */
+    nanoflann::KNNResultSet<double> resultSet(num_results);
+
+    resultSet.init(&ret_indexes[0], &out_dists_sqr[0] );
+    (*kd_tree.index).findNeighbors(resultSet, &query_pt[0], 
+				   nanoflann::SearchParams());
+
+    std::cout << "knnSearch(nn="<<num_results<<"): \n";
+    for (size_t i = 0; i < num_results; i++)
+	std::cout << "ret_index["<<i<<"]=" << ret_indexes[i] << \
+	    " out_dist_sqr=" << out_dists_sqr[i] << std::endl;
 }
 
 /// @brief Blank destructor.
