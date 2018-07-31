@@ -2,13 +2,13 @@
 
 # Directory names
 SRCDIR = src
-OBJDIR = obj
+OBJDIR2d = obj2d
+OBJDIR3d = obj3d
 BINDIR = bin
 
 # Input Names
 CPP_SRC_PATHS = $(wildcard $(SRCDIR)/*.cpp)
 CPP_FILES = $(CPP_SRC_PATHS:$(SRCDIR)/%=%)
-CPP_FILES := $(filter-out simulation.cpp,$(CPP_FILES))
 
 # -----------------------------------------------------------------------------
 
@@ -26,36 +26,37 @@ INCLUDE = -I$(BOOST_INC_PATH)
 # -----------------------------------------------------------------------------
 
 # C++ Object Files
-CPP_OBJ = $(addprefix $(OBJDIR)/, $(addsuffix .o, $(CPP_FILES)))
+CPP_OBJ2d = $(addprefix $(OBJDIR2d)/, $(addsuffix .o, $(CPP_FILES)))
+CPP_OBJ3d = $(addprefix $(OBJDIR3d)/, $(addsuffix .o, $(CPP_FILES)))
 
 # -----------------------------------------------------------------------------
 # Make rules
 # -----------------------------------------------------------------------------
 
 LINK = $(GPP) $(FLAGS) -o $(BINDIR)/$@ $(INCLUDE) $^
+COMPILE = $(GPP) $(FLAGS) -DDIMENSIONS=$(DIMENSIONS) -c -o $@ $(INCLUDE) $<
 
 # Top level rules
 
 all: ga_simulation_2d ga_simulation_3d
 
 ga_simulation_2d: DIMENSIONS = 2
-ga_simulation_2d: $(CPP_OBJ) $(OBJDIR)/simulation_2d.cpp.o
+ga_simulation_2d: $(CPP_OBJ2d)
 	$(LINK)
 
 ga_simulation_3d: DIMENSIONS = 3
-ga_simulation_3d: $(CPP_OBJ) $(OBJDIR)/simulation_3d.cpp.o
+ga_simulation_3d: $(CPP_OBJ3d)
 	$(LINK)
 
 # Compile C++ Source Files
-$(CPP_OBJ): $(OBJDIR)/%.o : $(SRCDIR)/%
-	$(GPP) $(FLAGS) -c -o $@ $(INCLUDE) $<
+$(CPP_OBJ2d): $(OBJDIR2d)/%.o : $(SRCDIR)/%
+	$(COMPILE)
 
-# Custom rule to define dimension
-$(OBJDIR)/simulation_%.cpp.o: $(SRCDIR)/simulation.cpp
-	$(GPP) $(FLAGS) -DDIMENSIONS=$(DIMENSIONS) -c -o $@ $(INCLUDE) $<
+$(CPP_OBJ3d): $(OBJDIR3d)/%.o : $(SRCDIR)/%
+	$(COMPILE)
 
 # Clean everything including temporary Emacs files
 clean:
-	rm -f $(BINDIR)/* $(OBJDIR)/*.o $(SRCDIR)/*~ *~
+	rm -f $(BINDIR)/* $(OBJDIR2d)/*.o $(OBJDIR3d)/*.o
 
 .PHONY: clean all
