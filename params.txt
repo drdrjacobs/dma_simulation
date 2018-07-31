@@ -14,12 +14,18 @@ int write_frame_interval = 100
 # scientific notation okay for this int
 int cluster_size = 2e6
 
-# length of particle movement in 3D
+# expected length of particle movement in 2d or 3d
 # setting this sets timestep implicitly
-float step_size = 1.0
+float rms_jump_size = 1.0
+# the max distance a particle can jump in one timestep in one dimension, in 
+# terms of the standard deviations of the non-cutoff parent normal distribution
+float jump_cutoff = 5
 # fraction of max sticking rate, kappa, to run at
 # setting this to 1 means the probability of sticking on contact will be 1
 float fraction_max_kappa = 1
+
+# optimization parameter for kd trees
+int max_leaf_size = 10
 
 # seeds rng
 int seed = 0

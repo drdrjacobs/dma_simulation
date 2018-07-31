@@ -13,7 +13,6 @@
 
 // nanoflann library for distance computations
 #include "nanoflann.hpp"
-#include "KDTreeVectorOfVectorsAdaptor.h"
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
@@ -24,8 +23,8 @@
 // define globals
 const int Simulation::kDims = DIMENSIONS;
 const std::string Simulation::kParamsFilename = "params.txt";
-typedef KDTreeVectorOfVectorsAdaptor<std::vector<std::vector<float>>, 
-				     float, Simulation::kDims> KDTree;
+/// small epsilon used in distance calculations, float so added f
+const float Simulation::kSpatialEpsilon = 0.001f;
 
 /// @brief Constructor starts simulation.
 ///
@@ -86,23 +85,25 @@ std::string Simulation::initialize_params() {
 	restart_path = "";
     }
 
-    step_size_ = std::stof(params_map["step_size"]);
     write_frame_interval_ = std::stoi(params_map["write_frame_interval"]);
     cluster_size_ = static_cast <int> (std::stof(params_map["cluster_size"]));
+    max_leaf_size_ = std::stoi(params_map["max_leaf_size"]);
     seed_ = std::stoi(params_map["seed"]);
+
+
+    // set expected length of particle movement in 2d or 3d
+    float rms_jump_size = std::stof(params_map["rms_jump_size"]);
+    // in one dimensional Brownian motion, the rms length of paticle step is 
+    // sqrt(2 * D * dt_), in reduced units the D disappears 
+    // so
+    // rms_jump_size = sqrt(2 * kDims * dt_)
+    dt_ = std::pow(rms_jump_size, 2) / (2 * kDims);
 
     float fraction_max_kappa = std::stof(params_map["fraction_max_kappa"]);
     // this line is confusing,
     // 
-    // in one dimensional Brownian motion, the length of paticle step is 
-    // sqrt(2 dt), where dt is the time in reduced units, (so effectively 
-    // D = 1)
-    // step_size_ = sqrt(2 * kDims * dt_), 
-    // dt = step_size_^2 / 2 * kDims
-    //
     // p_max = kappa_max * sqrt(dt) = 1.0 
     // kappa_max = p_max / sqrt(dt) = 1.0 / sqrt(dt)
-    // kappa = fraction_max_kappa * kappa_max
     // p_ = kappa * sqrt(dt) = fraction_max_kappa * max_kappa * sqrt(dt)
     // p_ = fraction_kappa_max * 1.0 / sqrt(dt) * sqrt(dt)
     //
@@ -111,57 +112,102 @@ std::string Simulation::initialize_params() {
     std::cout << "p_ = fraction_max_kappa = " << p_ << std::endl;
     
     // kappa = p_ / sqrt(dt) 
-    float kappa = p_ * std::sqrt(2 * kDims) / step_size_;
+    float kappa = p_ / std::sqrt(dt_);
     std::cout << "da = kappa^2 = " << std::pow(kappa, 2) << std::endl;
+
+    // set jump_cutoff_ for cell based spatial parallelism
+    jump_cutoff_ = std::stof(params_map["jump_cutoff"]);
+    // cell length must be larger than maximum jump size + 2 * diameter + 
+    // epsilon so that all collisions can be resolved
+    int diameter = 2;
+    float max_jump_length = std::sqrt(2 * kDims * dt_) * jump_cutoff_;
+    std::cout << "max_jump_length = " << max_jump_length << std::endl;
+    cell_length_ = max_jump_length + diameter + kSpatialEpsilon;
+    std::cout << "cell_length_ = " << cell_length_ << std::endl;
+    
     return restart_path;
 }
 
-/// @brief Coordinates running simulation.
+/// @brief Sets up plated vector and kd tree.
 ///
-void Simulation::run_simulation() {
-    std::cout << "DIMENSION = " << kDims << std::endl;
-    std::string restart_path = initialize_params();
-
-    std::vector<std::vector<float>> plated;
-    
-    // optimization parameter
-    int max_leaf_size = 10;
-    KDTree kd_tree(kDims, plated, max_leaf_size);
-
+/// @param[out] plated: vector of plated vectors
+/// @param[out] kd_tree: kd tree of plated
+///
+/// @returns radius: cluster radius, distance from origin to furthest plated
+///
+int Simulation::set_up_structures(std::string restart_path, 
+				   std::vector<std::vector<float>> & plated,
+				   KDTree & kd_tree) {
+    float radius;
     if (!restart_path.empty()) {
 	std::cout << "Restarting from file " << restart_path << std::endl;
         // load_state(setup_params.restart_path);
     }
     else {
-	// add single plated at origin to start
-	plated.resize(1);
-	plated.at(0).resize(kDims);
-	for (int i = 0; i < kDims; i++) {
-	    plated.at(0).at(i) = 0;
-	}
-	(*kd_tree.index).addPoints(0, 0);
+        // add single plated at origin to start
+        plated.resize(1);
+        plated.at(0).resize(kDims);
+        for (int i = 0; i < kDims; i++) {
+            plated.at(0).at(i) = 0;
+        }
+        (*kd_tree.index).addPoints(0, 0);
+	radius = 0;
     }
+    return radius;
+}
 
-    std::vector<float> query_pt(kDims);
+/// @brief Finds a random point on a ball with given radius and dimension.
+///
+/// @param kDims: the dimensions of the ball
+/// @param radius: the radius of the ball
+///
+/// @returns result: vector representing random point
+///
+std::vector<float> Simulation::generate_point_on_ball(int kDims, 
+						      float radius) {
+    std::vector<float> result(kDims);
     for (int i = 0; i < kDims; i++) {
-	query_pt.at(i) = i + 1;
+	result.at(i) = 1.0;
     }
+    return result;
+}
 
-    // do a knn search
-    const size_t num_results = 1;
-    std::vector<size_t> ret_indexes(num_results);
-    std::vector<double> out_dists_sqr(num_results);
-
-    nanoflann::KNNResultSet<double> resultSet(num_results);
-
-    resultSet.init(&ret_indexes[0], &out_dists_sqr[0] );
-    (*kd_tree.index).findNeighbors(resultSet, &query_pt[0], 
-				   nanoflann::SearchParams());
-
-    std::cout << "knnSearch(nn="<<num_results<<"): \n";
-    for (size_t i = 0; i < num_results; i++)
-	std::cout << "ret_index["<<i<<"]=" << ret_indexes[i] << \
-	    " out_dist_sqr=" << out_dists_sqr[i] << std::endl;
+/// @brief Coordinates running simulation.
+///
+void Simulation::run_simulation() {
+    // get simulattion parameters
+    std::cout << "DIMENSION = " << kDims << std::endl;
+    std::string restart_path = initialize_params();
+    // build data structures to track plated
+    std::vector<std::vector<float>> plated;
+    KDTree kd_tree(kDims, plated, max_leaf_size_);
+    // tracks radius of cluster, distance from origin to furthest plated
+    int radius = set_up_structures(restart_path, plated, kd_tree);
+    // set up rng
+    // ?
+    
+    // tracks whether current particle has stuck
+    bool stuck = false;
+    // main loop
+    for (int i = 0; i < cluster_size_; i++) {
+	std::vector<float> particle = generate_point_on_ball(kDims, radius);
+	while (!stuck) {
+	    // do a k nearest neighbors search with k = 1
+	    const size_t k = 1;
+	    size_t index;
+	    float squared_distance;
+	    kd_tree.query(&particle[0], k, &index, &squared_distance);
+	    if (squared_distance > std::pow(cell_length_, 2)) {
+		// Take as large a step as possible
+	    }
+	    else {
+		// evaluate collision
+		// bounce or plate particle
+	    }
+	    // see if particle crossed boundary, if it did regenerate it
+	    exit(0);
+	}
+    }
 }
 
 /// @brief Blank destructor.
