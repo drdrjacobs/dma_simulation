@@ -17,9 +17,11 @@ BOOST_PATH = /central/software/boost/1_66_0
 BOOST_INC_PATH = $(BOOST_PATH)/include
 BOOST_LIB_PATH = $(BOOST_PATH)/lib
 
+EIGEN_INC_PATH = /home/djacobso/eigen-eigen-b3f3d4950030
+
 GPP = g++
 FLAGS = -g -Wall -std=c++11 -pthread -O0
-INCLUDE = -I$(BOOST_INC_PATH)
+INCLUDE = -I$(BOOST_INC_PATH) -I$(EIGEN_INC_PATH)
 
 # -----------------------------------------------------------------------------
 # Object files

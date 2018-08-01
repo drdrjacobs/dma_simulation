@@ -31,6 +31,7 @@
 #include "nanoflann.hpp"
 
 #include <vector>
+#include <Eigen/Dense>
 
 // ===== This example shows how to use nanoflann with these types of containers: =======
 //typedef std::vector<std::vector<double> > my_vector_of_vectors_t;

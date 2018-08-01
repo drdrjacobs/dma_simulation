@@ -8,9 +8,12 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <random>
+
+// use eigen for vector operations
+#include <Eigen/Dense>
 
 #include "KDTreeVectorOfVectorsAdaptor.h"
+#include "state.hpp"
 
 /// @brief Simulation class which runs all calculations.
 ///
@@ -43,22 +46,21 @@ public:
     Simulation();
     ~Simulation();
     
+    typedef Eigen::Matrix<float, DIMENSIONS, 1> Vec;
+
     // Documented in the cpp
     static const int kDims;
     static const std::string kParamsFilename;
     static const float kSpatialEpsilon;
    
 private:
-    typedef KDTreeVectorOfVectorsAdaptor<std::vector<std::vector<float>>,
-					 float, DIMENSIONS> KDTree;
-
     void run_simulation();
     std::map<std::string, std::string> read_params_file() const;
     std::string initialize_params();
-    int set_up_structures(std::string restart_path,
-			  std::vector<std::vector<float>> & plated,
-			  KDTree & kd_tree);
-    std::vector<float> generate_point_on_ball(int kDims, float radius);
+    void set_up_state(std::string restart_path);
+    Vec generate_point_on_ball(int kDims, float radius, std::mt19937 & gen,
+			       State::Uniform & distribution);
+    bool step_forward();
 
     // Essential physical variables.
     
@@ -92,7 +94,13 @@ private:
     int max_leaf_size_;
     /// seed for rng
     int seed_;
-    /// Rng on cpu
-    std::mt19937 cpu_gen_;
+    
+    // State class includes all data structures that change as simulation
+    // advances
+    State state_;
 };
+
+// free functions
+void truncated_normal_transform(float standard_deviation, float cutoff,
+				Simulation::Vec & v);
 
