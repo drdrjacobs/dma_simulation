@@ -41,6 +41,7 @@ public:
     static const int kDims;
 
     void write_xyz();
+    float find_nearest_neighbor();
 
 private:
     /// Position of diffusing particle

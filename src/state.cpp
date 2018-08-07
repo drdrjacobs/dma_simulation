@@ -39,3 +39,18 @@ void State::write_xyz() {
     }
     xyz_file.close();
 }
+
+/// @brief Finds the nearest neighbor plated of particle.
+///
+/// Uses nanoflann implementation.
+///
+/// @returns squared_distance: the squared distance between particle and 
+///     nearest neighbor plated
+///
+float State::find_nearest_neighbor() {
+    const size_t k = 1;
+    size_t index;
+    float squared_distance;
+    (*kd_tree_).query(particle_.data(), k, &index, &squared_distance);
+    return squared_distance;
+}

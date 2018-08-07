@@ -60,6 +60,10 @@ private:
     void set_up_state(std::string restart_path);
     Vec generate_point_on_ball(int kDims, float radius, std::mt19937 & gen,
 			       State::Uniform & distribution);
+    Vec generate_jump();
+    float calculate_collisions(Vec jump_unit_vector, float jump_length);
+    bool resolve_jump(float minimum_contact_distance, Vec jump, 
+		      Vec jump_unit_vector);
     bool step_forward();
 
     // Essential physical variables.
@@ -99,8 +103,3 @@ private:
     // advances
     State state_;
 };
-
-// free functions
-void truncated_normal_transform(float standard_deviation, float cutoff,
-				Simulation::Vec & v);
-

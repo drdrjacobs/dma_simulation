@@ -1,4 +1,4 @@
-/// @file
+ /// @file
 ///
 /// @brief Implementation of the Simulation class which coordinates all
 /// calculations.
@@ -189,47 +189,54 @@ Simulation::Vec Simulation::generate_point_on_ball(int kDims, float radius,
     return result;
 }
 
-/// Transforms jump from uniform [0, 1) into a truncated normal distribution.
+/// @brief Draws Brownian jump from truncated normal distribution with 
+///     appropriate width.
 ///
 /// Truncated normal distribution is implemented using the inverse transform
-/// method. Truncation occurs after certain number of standard deviations. Mean
-/// is 0.
+/// method. Truncation occurs after certain number of standard deviations.
 ///
 /// See: https://en.wikipedia.org/wiki/Truncated_normal_distribution
 ///
-/// @param standard_deviation: standard deviation of parent non-truncated
-///     normal distribution
-/// @param cutoff: truncate after this many standard deviations of the
-///     non-truncated parent normal distribution.
-/// @param[out] v: vector of uniform [0, 1) representing particle's jump
-/// 
-void truncated_normal_transform(float standard_deviation, float cutoff,
-				Simulation::Vec & v) {
-    boost::math::normal_distribution<float> normal;
-    float phi = boost::math::cdf(normal, cutoff);
-    float tmp;
-    for (int i = 0; i < v.size(); i++) {
-	// use property that phi(-x) = 1 - phi(x) 
-	tmp = v[i] * (2.0 * phi - 1.0);
-	tmp = (1.0 - phi) + tmp;
-	v[i] = boost::math::quantile(normal, tmp) * standard_deviation;
-    }
-}
-
-/// @brief Take a small step forward in time.
+/// @returns jump: jump drawn from truncated normal distribution 
 ///
-/// @returns stuck: true if particle sticks to cluster
-///
-bool Simulation::step_forward() {
+Simulation::Vec Simulation::generate_jump() {
     Vec jump;
     for (int i = 0; i < Simulation::kDims; i++) {
 	jump(i) = state_.uniform_(state_.gen_);
     }
-    // standard deviation of Brownian jump in one dimension
+    // standard deviation of parent Brownian non-truncated normal distribution
+    // in one dimension
     float standard_deviation = std::sqrt(2 * dt_);
-    truncated_normal_transform(standard_deviation, jump_cutoff_, jump);
-    std::cout << "jump:\n" << jump << std::endl;
+    // truncate after jump_cutoff_ standard deviations of the
+    // non-truncated parent normal distribution.
+    //
+    // See: https://en.wikipedia.org/wiki/Truncated_normal_distribution
+    boost::math::normal_distribution<float> normal;
+    float phi = boost::math::cdf(normal, jump_cutoff_);
+    float tmp;
+    for (int i = 0; i < jump.size(); i++) {
+	// use property that phi(-x) = 1 - phi(x) 
+	tmp = jump[i] * (2.0 * phi - 1.0);
+	tmp = (1.0 - phi) + tmp;
+	jump[i] = boost::math::quantile(normal, tmp) * standard_deviation;
+    }
+    return jump;
+}
 
+/// @brief Finds all contacts between particle and plated along jump 
+/// trajectory.
+///
+/// @param jump_unit_vector: unit vector pointing along jump, accounts for 
+///     precision
+/// @param jump_length: length of jump along unit vector
+///
+/// @returns minimum_contact_distance: distance along jump vector at which 
+///    particle makes contact with plated, inf if no contact is made
+///
+float Simulation::calculate_collisions(Vec jump_unit_vector, 
+				      float jump_length) {
+    // this may becom deprecated when switch is made to cell hash
+    //
     // find neighbors within max interaction length, cell_length_^2
     // neighbors has one pair for each neighbor
     // first element in pair is index of neighbor in plated_cloud_
@@ -240,14 +247,9 @@ bool Simulation::step_forward() {
     (*(*state_.kd_tree_).index).findNeighbors(result_set, 
 					      state_.particle_.data(), 
 					      nanoflann::SearchParams());
-    std::cout << "N_neighbors = " << neighbors.size() << std::endl;
-    bool stuck = false;
+
     // minimum distance along jump vector at which particle contacts a plated
     float minimum_contact_distance = std::numeric_limits<float>::infinity();
-    // unit vector along jump, account for precision 
-    Vec l = ((state_.particle_ + jump) - state_.particle_);
-    float jump_length = l.norm();
-    l = l / jump_length;
     for (auto n : neighbors) {
 	Vec plated_r = state_.plated_cloud_[n.first];
 	// Going to calculate point at which line defined by 
@@ -258,14 +260,14 @@ bool Simulation::step_forward() {
 	Vec diff = state_.particle_ - plated_r;
 	// radius is 2, not 1 here since looking at the collision surface
 	int squared_radius = 4;
-	float discriminant = (std::pow(l.dot(diff), 2) - 
+	float discriminant = (std::pow(jump_unit_vector.dot(diff), 2) - 
 			      diff.squaredNorm() + squared_radius);
 	if (discriminant >= 0) {
 	    // line pierces sphere twice, so take the closest contact
             // ignore negative d values, means ion has to go the other
 	    // way along l
-            float d1 = -l.dot(diff) + std::sqrt(discriminant);
-            float d2 = -l.dot(diff) - std::sqrt(discriminant);
+            float d1 = -jump_unit_vector.dot(diff) + std::sqrt(discriminant);
+            float d2 = -jump_unit_vector.dot(diff) - std::sqrt(discriminant);
             if (d1 < 0.0) {
                 d1 = std::numeric_limits<float>::infinity();
             }
@@ -273,13 +275,28 @@ bool Simulation::step_forward() {
                 d2 = std::numeric_limits<float>::infinity();
             }
             float d = std::min(d1, d2);
-	    std::cout << "d = " << d << std::endl;
             if (d <= jump_length && d < minimum_contact_distance) {
 		// potential collision occured since 0 < d < jump_length
                 minimum_contact_distance = d;
 	    }
 	}
     }
+    return minimum_contact_distance;
+}
+
+/// @brief Moves particle along given jump and updates simulation state.
+///
+/// @param minimum_contact_distance: distance along jump vector at which 
+///    particle makes contact with plated, inf if no contact is made
+/// @param jump: vector that discribes particle jump
+/// @param jump_unit_vector: unit vector pointing along jump, accounts for 
+///     precision
+///
+/// @returns stuck: true if particle sticks to plated, false otherwise
+///
+bool Simulation::resolve_jump(float minimum_contact_distance,
+			      Vec jump, Vec jump_unit_vector) {
+    bool stuck = false;
     if (std::isinf(minimum_contact_distance)) {
 	// no cantact is made, take full jump
 	state_.particle_ += jump;
@@ -289,7 +306,7 @@ bool Simulation::step_forward() {
 	// collision has occured
 	stuck = true;
 	// put particle in contact with plated
-	state_.particle_ += minimum_contact_distance * l;
+	state_.particle_ += minimum_contact_distance * jump_unit_vector;
 	// add particle to cluster
         state_.plated_cloud_.push_back(state_.particle_);
 	// add new plated in cluster to tree
@@ -300,14 +317,28 @@ bool Simulation::step_forward() {
 	if (newly_plated_radius > state_.radius_) {
 	    state_.radius_ = newly_plated_radius;
 	}
-	std::cout << "plated_cloud_:" << std::endl;
-	for (auto p : state_.plated_cloud_) {
-	    std::cout << p << std::endl << std::endl;
-	}
-
     }
     // otherwise, contact made, but no sticking, rejection move for now
     return stuck;
+}
+
+/// @brief Take a small step forward in time.
+///
+/// Farms out work to series of helper methods.
+///
+/// @returns stuck: true if particle sticks to cluster
+///
+bool Simulation::step_forward() {
+    Vec jump = generate_jump();
+    // unit vector along jump and jump length, account for precision 
+    Vec jump_unit_vector = ((state_.particle_ + jump) - state_.particle_);
+    float jump_length = jump_unit_vector.norm();
+    jump_unit_vector = jump_unit_vector / jump_length;
+    float minimum_contact_distance = calculate_collisions(jump_unit_vector, 
+							  jump_length);
+    bool stuck = resolve_jump(minimum_contact_distance, jump, 
+			      jump_unit_vector);
+    return stuck; 
 }
 
 /// @brief Coordinates running simulation.
@@ -319,11 +350,10 @@ void Simulation::run_simulation() {
     set_up_state(restart_path);
     
     int diameter = 2;
+    float squared_cell_length = std::pow(cell_length_, 2);
+
     // main loop, already start with cluster size of 1
     for (int i = 1; i < cluster_size_; i++) {
-	std::cout << std::endl << "###################################" << 
-	    std::endl;
-	std::cout << "i = " << i << std::endl;
 	// tracks whether current particle has stuck
 	bool stuck = false;
 	// radius at which new particle should be generated at
@@ -333,21 +363,10 @@ void Simulation::run_simulation() {
 						  state_.gen_, 
 						  state_.uniform_);
 	while (!stuck) {
-	    std::cout << "particle:\n" << state_.particle_ << std::endl;
-	    // do a k nearest neighbors search with k = 1
-	    const size_t k = 1;
-	    size_t index;
-	    float squared_distance;
-	    int diameter = 2;
+	    float squared_distance = state_.find_nearest_neighbor();
 	    // cell_length_ = max_jump_distance + diameter + epsilon is
 	    // max interaction length within one step
-	    float squared_cell_length = std::pow(cell_length_, 2);
-
-	    (*state_.kd_tree_).query(state_.particle_.data(), k, &index, 
-				    &squared_distance);
-
 	    if (squared_distance > squared_cell_length) {
-		std::cout << "Big jump!" << std::endl;
 		// particle is farther than max interaction length from nearest
 		// plated so take as large a step as possible using exact
 		// Brownian dynamics
@@ -357,22 +376,21 @@ void Simulation::run_simulation() {
 						  state_.gen_,
 						  state_.uniform_);
 		state_.particle_ += jump;
-		std::cout << "particle:\n" << state_.particle_ << std::endl;
 	    }
 	    else {
 		// take a step forward in time since a collision is possible
 		stuck = step_forward();
 	    }
 	    // see if particle crossed boundary, if it did regenerate it
-	    if (!stuck && state_.particle_.norm() > 1.05 * generation_radius) {
+	    if (!stuck && state_.particle_.norm() > 3 * generation_radius) {
 		state_.particle_ = generate_point_on_ball(kDims, 
 							  generation_radius, 
 							  state_.gen_, 
 							  state_.uniform_);
 	    }
-	    // std::cin.ignore();
 	}
 	if ((i + 1) % write_frame_interval_ == 0) {
+	    std::cout << "N_plated = " << (i + 1) << std::endl;
 	    state_.write_xyz();
 	}
     }
