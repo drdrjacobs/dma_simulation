@@ -12,7 +12,7 @@
 int write_frame_interval = 100
 # size of cluster to end simulation at
 # scientific notation okay for this int
-int cluster_size = 2e6
+int cluster_size = 1000
 
 # expected length of particle movement in 2d or 3d
 # setting this sets timestep implicitly

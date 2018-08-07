@@ -40,18 +40,20 @@ public:
     // Documented in the cpp
     static const int kDims;
 
+    void write_xyz();
+
 private:
     /// Position of diffusing particle
-    Vec particle;
+    Vec particle_;
     /// cloud of plated, std::vector of eigen vectors, used for kd_tree
-    PlatedCloud plated_cloud;
+    PlatedCloud plated_cloud_;
     /// nanoflann based k dimensional tree for finding nearest neighbor of 
     /// particle, have to use smart pointer here due to how KDTree is set up
-    std::unique_ptr<KDTree> kd_tree;
+    std::unique_ptr<KDTree> kd_tree_;
     //// tracks radius of cluster, distance from origin to furthest plated
-    float radius;
+    float radius_;
     /// random number generator
-    std::mt19937 gen;
+    std::mt19937 gen_;
     /// uniform [0, 1) distribution for random number generator
-    Uniform distribution;
+    Uniform uniform_;
 };

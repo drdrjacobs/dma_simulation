@@ -124,7 +124,8 @@ std::string Simulation::initialize_params() {
     
     // kappa = p_ / sqrt(dt) 
     float kappa = p_ / std::sqrt(dt_);
-    std::cout << "da = kappa^2 = " << std::pow(kappa, 2) << std::endl;
+    std::cout << "da = kappa^2 = " << std::pow(kappa, 2) << std::endl << 
+	std::endl;
     
     return restart_path;
 }
@@ -134,7 +135,7 @@ std::string Simulation::initialize_params() {
 /// @param restart_path: path of file that may contain saved state
 ///
 void Simulation::set_up_state(std::string restart_path) {
-    state_.kd_tree.reset(new State::KDTree(kDims, state_.plated_cloud, 
+    state_.kd_tree_.reset(new State::KDTree(kDims, state_.plated_cloud_, 
 					   max_leaf_size_));
     if (!restart_path.empty()) {
 	std::cout << "Restarting from file " << restart_path << std::endl;
@@ -142,16 +143,16 @@ void Simulation::set_up_state(std::string restart_path) {
     }
     else {
         // add single plated at origin to start
-        state_.plated_cloud.resize(1);
+        state_.plated_cloud_.resize(1);
         for (int i = 0; i < kDims; i++) {
-            state_.plated_cloud.at(0)(i) = 0;
+            state_.plated_cloud_.at(0)(i) = 0;
         }
-        (*(*state_.kd_tree).index).addPoints(0, 0);
-	state_.radius = 0;
+        (*(*state_.kd_tree_).index).addPoints(0, 0);
+	state_.radius_ = 0;
 
 	// set up rng
-	state_.gen = std::mt19937(seed_);
-	state_.distribution = State::Uniform(0.0, 1.0);
+	state_.gen_ = std::mt19937(seed_);
+	state_.uniform_ = State::Uniform(0.0, 1.0);
     }
 }
 
@@ -166,9 +167,9 @@ void Simulation::set_up_state(std::string restart_path) {
 ///
 Simulation::Vec Simulation::generate_point_on_ball(int kDims, float radius,
 						   std::mt19937 & gen,
-						   State::Uniform & dist) {
+						   State::Uniform & uniform) {
     Vec result;
-    float theta = 2.0 * M_PI * dist(gen);
+    float theta = 2.0 * M_PI * uniform(gen);
     if (kDims == 2) {
 	float x = std::cos(theta);
 	float y = std::sin(theta);
@@ -178,7 +179,7 @@ Simulation::Vec Simulation::generate_point_on_ball(int kDims, float radius,
     else if (kDims == 3) {
 	// need random point on sphere, see: 
 	// http://mathworld.wolfram.com/SpherePointPicking.html
-	float cos_phi = 2.0 * dist(gen) - 1.0;
+	float cos_phi = 2.0 * uniform(gen) - 1.0;
 	float x = std::sqrt(1 - std::pow(cos_phi, 2)) * std::cos(theta);
 	float y = std::sqrt(1 - std::pow(cos_phi, 2)) * std::sin(theta);
 	float z = cos_phi;
@@ -222,37 +223,39 @@ void truncated_normal_transform(float standard_deviation, float cutoff,
 bool Simulation::step_forward() {
     Vec jump;
     for (int i = 0; i < Simulation::kDims; i++) {
-	jump(i) = state_.distribution(state_.gen);
+	jump(i) = state_.uniform_(state_.gen_);
     }
     // standard deviation of Brownian jump in one dimension
     float standard_deviation = std::sqrt(2 * dt_);
     truncated_normal_transform(standard_deviation, jump_cutoff_, jump);
+    std::cout << "jump:\n" << jump << std::endl;
 
     // find neighbors within max interaction length, cell_length_^2
     // neighbors has one pair for each neighbor
-    // first element in pair is index of neighbor in plated_cloud
-    // second element is squared distance between particle
+    // first element in pair is index of neighbor in plated_cloud_
+    // second element is squared distance between that plated and particle
     std::vector<std::pair<size_t, float>> neighbors;
     typedef nanoflann::RadiusResultSet<float, size_t> RadiusResultSet;
     RadiusResultSet result_set(std::pow(cell_length_, 2), neighbors);
-    (*(*state_.kd_tree).index).findNeighbors(result_set, 
-					     state_.particle.data(), 
-					     nanoflann::SearchParams());
+    (*(*state_.kd_tree_).index).findNeighbors(result_set, 
+					      state_.particle_.data(), 
+					      nanoflann::SearchParams());
+    std::cout << "N_neighbors = " << neighbors.size() << std::endl;
     bool stuck = false;
     // minimum distance along jump vector at which particle contacts a plated
-    float minimum_contact_distance = 999;
+    float minimum_contact_distance = std::numeric_limits<float>::infinity();
     // unit vector along jump, account for precision 
-    Vec l = ((state_.particle + jump) - state_.particle);
+    Vec l = ((state_.particle_ + jump) - state_.particle_);
     float jump_length = l.norm();
     l = l / jump_length;
     for (auto n : neighbors) {
-	Vec plated_r = state_.plated_cloud[n.first];
+	Vec plated_r = state_.plated_cloud_[n.first];
 	// Going to calculate point at which line defined by 
 	// jump_vector makes contact with sphere defined by 
 	// plated. See:                           
 	//
 	// https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
-	Vec diff = state_.particle - plated_r;
+	Vec diff = state_.particle_ - plated_r;
 	// radius is 2, not 1 here since looking at the collision surface
 	int squared_radius = 4;
 	float discriminant = (std::pow(l.dot(diff), 2) - 
@@ -264,18 +267,46 @@ bool Simulation::step_forward() {
             float d1 = -l.dot(diff) + std::sqrt(discriminant);
             float d2 = -l.dot(diff) - std::sqrt(discriminant);
             if (d1 < 0.0) {
-                d1 = 999;
+                d1 = std::numeric_limits<float>::infinity();
             }
             if (d2 < 0.0) {
-                d2 = 999;
+                d2 = std::numeric_limits<float>::infinity();
             }
             float d = std::min(d1, d2);
+	    std::cout << "d = " << d << std::endl;
             if (d <= jump_length && d < minimum_contact_distance) {
-		// collision occured since 0 < d < jump_length
+		// potential collision occured since 0 < d < jump_length
                 minimum_contact_distance = d;
 	    }
 	}
     }
+    if (std::isinf(minimum_contact_distance)) {
+	// no cantact is made, take full jump
+	state_.particle_ += jump;
+    }
+    else if (!std::isinf(minimum_contact_distance) && 
+	     state_.uniform_(state_.gen_) < p_) {
+	// collision has occured
+	stuck = true;
+	// put particle in contact with plated
+	state_.particle_ += minimum_contact_distance * l;
+	// add particle to cluster
+        state_.plated_cloud_.push_back(state_.particle_);
+	// add new plated in cluster to tree
+	size_t new_index = state_.plated_cloud_.size() - 1; 
+        (*(*state_.kd_tree_).index).addPoints(new_index, new_index);
+	// update cluster radius if necessary
+	float newly_plated_radius = state_.particle_.norm();
+	if (newly_plated_radius > state_.radius_) {
+	    state_.radius_ = newly_plated_radius;
+	}
+	std::cout << "plated_cloud_:" << std::endl;
+	for (auto p : state_.plated_cloud_) {
+	    std::cout << p << std::endl << std::endl;
+	}
+
+    }
+    // otherwise, contact made, but no sticking, rejection move for now
     return stuck;
 }
 
@@ -287,19 +318,22 @@ void Simulation::run_simulation() {
     std::string restart_path = initialize_params();
     set_up_state(restart_path);
     
-    // tracks whether current particle has stuck
-    bool stuck = false;
     int diameter = 2;
-    // main loop
-    for (int i = 0; i < cluster_size_; i++) {
+    // main loop, already start with cluster size of 1
+    for (int i = 1; i < cluster_size_; i++) {
+	std::cout << std::endl << "###################################" << 
+	    std::endl;
+	std::cout << "i = " << i << std::endl;
+	// tracks whether current particle has stuck
+	bool stuck = false;
 	// radius at which new particle should be generated at
-	float generation_radius = state_.radius + diameter + kSpatialEpsilon;
+	float generation_radius = state_.radius_ + diameter + kSpatialEpsilon;
 	// position vector of diffusing particle
-	state_.particle = generate_point_on_ball(kDims, generation_radius, 
-						 state_.gen, 
-						 state_.distribution);
-	std::cout << "particle:\n" << state_.particle << std::endl;
+	state_.particle_ = generate_point_on_ball(kDims, generation_radius, 
+						  state_.gen_, 
+						  state_.uniform_);
 	while (!stuck) {
+	    std::cout << "particle:\n" << state_.particle_ << std::endl;
 	    // do a k nearest neighbors search with k = 1
 	    const size_t k = 1;
 	    size_t index;
@@ -309,33 +343,37 @@ void Simulation::run_simulation() {
 	    // max interaction length within one step
 	    float squared_cell_length = std::pow(cell_length_, 2);
 
-	    (*state_.kd_tree).query(state_.particle.data(), k, &index, 
+	    (*state_.kd_tree_).query(state_.particle_.data(), k, &index, 
 				    &squared_distance);
 
 	    if (squared_distance > squared_cell_length) {
+		std::cout << "Big jump!" << std::endl;
 		// particle is farther than max interaction length from nearest
 		// plated so take as large a step as possible using exact
 		// Brownian dynamics
 		float jump_length = (std::sqrt(squared_distance) - diameter 
 				     - kSpatialEpsilon);
 		Vec jump = generate_point_on_ball(kDims, jump_length, 
-						  state_.gen,
-						  state_.distribution);
-		state_.particle += jump;
-		std::cout << "particle:\n" << state_.particle << std::endl;
+						  state_.gen_,
+						  state_.uniform_);
+		state_.particle_ += jump;
+		std::cout << "particle:\n" << state_.particle_ << std::endl;
 	    }
 	    else {
 		// take a step forward in time since a collision is possible
 		stuck = step_forward();
 	    }
 	    // see if particle crossed boundary, if it did regenerate it
-	    if (state_.particle.norm() > 3 * generation_radius) {
-		state_.particle = generate_point_on_ball(kDims, 
-							 generation_radius, 
-							 state_.gen, 
-							 state_.distribution);
+	    if (!stuck && state_.particle_.norm() > 1.05 * generation_radius) {
+		state_.particle_ = generate_point_on_ball(kDims, 
+							  generation_radius, 
+							  state_.gen_, 
+							  state_.uniform_);
 	    }
-	    exit(0);
+	    // std::cin.ignore();
+	}
+	if ((i + 1) % write_frame_interval_ == 0) {
+	    state_.write_xyz();
 	}
     }
 }
