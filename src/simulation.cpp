@@ -228,13 +228,14 @@ Simulation::Vec Simulation::generate_jump() {
 ///
 /// @param jump_unit_vector: unit vector pointing along jump, accounts for 
 ///     precision
-/// @param jump_length: length of jump along unit vector
+/// @param jump_length: length of jump along unit vector, accounts for precsion
+/// @param jump: vector that discribes particle jump
 ///
 /// @returns minimum_contact_distance: distance along jump vector at which 
 ///    particle makes contact with plated, inf if no contact is made
 ///
 float Simulation::calculate_collisions(Vec jump_unit_vector, 
-				      float jump_length) {
+				       float jump_length, Vec jump) {
     // this may becom deprecated when switch is made to cell hash
     //
     // find neighbors within max interaction length, cell_length_^2
@@ -248,10 +249,19 @@ float Simulation::calculate_collisions(Vec jump_unit_vector,
 					      state_.particle_.data(), 
 					      nanoflann::SearchParams());
 
+    int diameter = 2;
     // minimum distance along jump vector at which particle contacts a plated
     float minimum_contact_distance = std::numeric_limits<float>::infinity();
     for (auto n : neighbors) {
 	Vec plated_r = state_.plated_cloud_[n.first];
+
+	// check to make sure did not start too close to plated
+        if ((state_.particle_ - plated_r).norm() <= 
+	    diameter - kSpatialEpsilon) {
+            printf("Particle started too close to plated!\n");
+	    std::exit(-1);
+        }
+
 	// Going to calculate point at which line defined by 
 	// jump_vector makes contact with sphere defined by 
 	// plated. See:                           
@@ -280,6 +290,33 @@ float Simulation::calculate_collisions(Vec jump_unit_vector,
                 minimum_contact_distance = d;
 	    }
 	}
+	if (std::isinf(minimum_contact_distance)) {
+            // No contact is made according to the caclulation, however,
+	    // this calculation is not perfect due to floating point
+	    // precision and so may miss cases where the ion jumps very
+	    // near the boundary.
+	    //
+	    // For this reason, need to check the endpoint separately to
+	    // ensure exactly that no ion ever ends up less than or equal
+	    // to diameter distance away from a plated.
+	    //
+            Vec new_particle_r = state_.particle_ + jump;
+            float new_center_center_distance = (new_particle_r - 
+						plated_r).norm();
+            // Add epsilon here to create a small skin. I think this will
+	    // resolve all stability issues.
+	    //
+	    // The skin is needed since there is no strict guarantee that the 
+	    // algorithm will find the boundary if the center-center distance 
+	    // is > diameter. However, presumably if the 
+	    // center-center distance > diameter + skin, there won't be any
+	    // problems.
+	    if (new_center_center_distance <= diameter + kSpatialEpsilon) {
+                // contact actually was made
+                minimum_contact_distance = jump_length;
+            }
+        }
+
     }
     return minimum_contact_distance;
 }
@@ -335,7 +372,7 @@ bool Simulation::step_forward() {
     float jump_length = jump_unit_vector.norm();
     jump_unit_vector = jump_unit_vector / jump_length;
     float minimum_contact_distance = calculate_collisions(jump_unit_vector, 
-							  jump_length);
+							  jump_length, jump);
     bool stuck = resolve_jump(minimum_contact_distance, jump, 
 			      jump_unit_vector);
     return stuck; 

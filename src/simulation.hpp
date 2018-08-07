@@ -61,7 +61,8 @@ private:
     Vec generate_point_on_ball(int kDims, float radius, std::mt19937 & gen,
 			       State::Uniform & distribution);
     Vec generate_jump();
-    float calculate_collisions(Vec jump_unit_vector, float jump_length);
+    float calculate_collisions(Vec jump_unit_vector, float jump_length, 
+			       Vec jump);
     bool resolve_jump(float minimum_contact_distance, Vec jump, 
 		      Vec jump_unit_vector);
     bool step_forward();
