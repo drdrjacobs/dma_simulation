@@ -16,9 +16,6 @@
 
 #include <boost/math/distributions/normal.hpp>
 #include <boost/math/distributions/inverse_gaussian.hpp>
-#include <boost/archive/binary_oarchive.hpp>
-#include <boost/archive/binary_iarchive.hpp>
-#include <boost/serialization/vector.hpp>
 
 #include "simulation.hpp"
 
@@ -135,18 +132,19 @@ std::string Simulation::initialize_params() {
 /// @param restart_path: path of file that may contain saved state
 ///
 void Simulation::set_up_state(std::string restart_path) {
-    state_.kd_tree_.reset(new State::KDTree(kDims, state_.plated_cloud_, 
-					   max_leaf_size_));
     if (!restart_path.empty()) {
 	std::cout << "Restarting from file " << restart_path << std::endl;
-        // load_state(setup_params.restart_path);
+        state_.load_state(restart_path, max_leaf_size_);
     }
     else {
+	// start new simulation,
         // add single plated at origin to start
         state_.plated_cloud_.resize(1);
         for (int i = 0; i < kDims; i++) {
             state_.plated_cloud_.at(0)(i) = 0;
         }
+	state_.kd_tree_.reset(new State::KDTree(kDims, state_.plated_cloud_, 
+						max_leaf_size_));
         (*(*state_.kd_tree_).index).addPoints(0, 0);
 	state_.radius_ = 0;
 
@@ -390,7 +388,7 @@ void Simulation::run_simulation() {
     float squared_cell_length = std::pow(cell_length_, 2);
 
     // main loop, already start with cluster size of 1
-    for (int i = 1; i < cluster_size_; i++) {
+    for (int i = state_.plated_cloud_.size() + 1; i <= cluster_size_; i++) {
 	// tracks whether current particle has stuck
 	bool stuck = false;
 	// radius at which new particle should be generated at
@@ -426,11 +424,12 @@ void Simulation::run_simulation() {
 							  state_.uniform_);
 	    }
 	}
-	if ((i + 1) % write_frame_interval_ == 0) {
-	    std::cout << "N_plated = " << (i + 1) << std::endl;
+	if (i % write_frame_interval_ == 0) {
+	    std::cout << "N_plated = " << i << std::endl;
 	    state_.write_xyz();
 	}
     }
+    state_.save_state();
 }
 
 /// @brief Blank destructor.

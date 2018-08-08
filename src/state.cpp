@@ -8,6 +8,10 @@
 #include <cmath>
 #include <fstream>
 
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/vector.hpp>
+
 #include "state.hpp"
 
 // define globals
@@ -53,4 +57,73 @@ float State::find_nearest_neighbor() {
     float squared_distance;
     (*kd_tree_).query(particle_.data(), k, &index, &squared_distance);
     return squared_distance;
+}
+
+/// @brief Serialization writes out exact state of simulation.
+///
+/// Serialization is run through std::vector and boost binary_oarchive.
+///
+/// Requires the params file to be set exactly the same to work upon loading.
+///
+/// Note that running two trajectories starting from the same serialized state
+/// should produce exactly the same results.
+///
+void State::save_state() {
+    std::string restart_string = ("restart_" + 
+				  std::to_string(plated_cloud_.size()) + 
+				  ".ser");
+    std::ofstream stream(restart_string);
+    boost::archive::binary_oarchive archive(stream);
+
+    std::vector<std::vector<float>> serialize_plated;
+    for (auto p : plated_cloud_) {
+	std::vector<float> v(p.data(), p.data() + p.size());
+	serialize_plated.push_back(v);
+    }
+    archive & serialize_plated;
+
+    // save state of random number generator
+    stream << gen_ << std::endl;
+    stream << uniform_ << std::endl;
+    stream.close();
+}
+
+/// @brief Loads exact serialized state of a simulation. 
+///
+/// Serialization is run through std::vector and boost binary_iarchives.
+///
+/// Requires the simulation parameters to be set exactly the same as when the
+/// state was saved to work!
+///
+/// Note that running two trajectories starting from the same serialized state
+/// should produce exactly the same results.
+///
+/// @param load_path: path to file to load
+/// @param max_leaf_size: optimization parameter for kd tree
+///
+void State::load_state(std::string load_path, int max_leaf_size) {
+    std::ifstream stream(load_path);
+    boost::archive::binary_iarchive archive(stream);
+
+    std::vector<std::vector<float>> serialize_plated;
+    archive & serialize_plated;
+
+    plated_cloud_.clear();
+    radius_ = 0;
+    for (auto p : serialize_plated) {
+	Vec v(p.data());
+	if (v.norm() > radius_) {
+	    radius_ = v.norm();
+	}
+	plated_cloud_.push_back(v);
+    }
+
+    // load state of random number generator
+    stream >> gen_;
+    stream >> uniform_;
+    stream.close();
+
+    // set up kd_tree
+    kd_tree_.reset(new State::KDTree(kDims, plated_cloud_, max_leaf_size));
+    (*(*kd_tree_).index).addPoints(0, plated_cloud_.size() - 1);
 }

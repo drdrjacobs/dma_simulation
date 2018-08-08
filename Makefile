@@ -20,8 +20,9 @@ BOOST_LIB_PATH = $(BOOST_PATH)/lib
 EIGEN_INC_PATH = /home/djacobso/eigen-eigen-b3f3d4950030
 
 GPP = g++
-FLAGS = -g -Wall -std=c++11 -pthread -O0
+FLAGS = -g -Wall -std=c++11 -pthread -O0 
 INCLUDE = -I$(BOOST_INC_PATH) -I$(EIGEN_INC_PATH)
+LIBS= -L$(BOOST_LIB_PATH) -lboost_serialization
 
 # -----------------------------------------------------------------------------
 # Object files
@@ -35,7 +36,7 @@ CPP_OBJ3d = $(addprefix $(OBJDIR3d)/, $(addsuffix .o, $(CPP_FILES)))
 # Make rules
 # -----------------------------------------------------------------------------
 
-LINK = $(GPP) $(FLAGS) -o $(BINDIR)/$@ $(INCLUDE) $^
+LINK = $(GPP) $(FLAGS) -o $(BINDIR)/$@ $(INCLUDE) $^ $(LIBS)
 COMPILE = $(GPP) $(FLAGS) -DDIMENSIONS=$(DIMENSIONS) -c -o $@ $(INCLUDE) $<
 
 # Top level rules

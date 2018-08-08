@@ -9,6 +9,7 @@
 #include <vector>
 #include <random>
 #include <memory>
+#include <string>
 
 // use eigen for vector operations
 #include <Eigen/Dense>
@@ -42,6 +43,8 @@ public:
 
     void write_xyz();
     float find_nearest_neighbor();
+    void save_state();
+    void load_state(std::string load_path, int max_leaf_size);
 
 private:
     /// Position of diffusing particle
