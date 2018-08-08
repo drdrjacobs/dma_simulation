@@ -14,7 +14,9 @@
 // use eigen for vector operations
 #include <Eigen/Dense>
 
+#include "vec.hpp"
 #include "KDTreeVectorOfVectorsAdaptor.h"
+#include "cells.hpp"
 
 // forward declaration for friend class
 class Simulation;
@@ -32,28 +34,28 @@ public:
     State() {};
     ~State() {};
     
-    typedef Eigen::Matrix<float, DIMENSIONS, 1> Vec;
-    typedef std::vector<State::Vec> PlatedCloud;
-    typedef KDTreeVectorOfVectorsAdaptor<PlatedCloud, float, 
+    typedef KDTreeVectorOfVectorsAdaptor<std::vector<Vec>, float, 
 					 DIMENSIONS> KDTree;
     typedef std::uniform_real_distribution<float> Uniform;
 
     // Documented in the cpp
     static const int kDims;
 
-    void write_xyz();
-    float find_nearest_neighbor();
-    void save_state();
+    void write_xyz() const;
+    float find_nearest_neighbor() const;
+    void save_state() const;
     void load_state(std::string load_path, int max_leaf_size);
 
 private:
     /// Position of diffusing particle
     Vec particle_;
     /// cloud of plated, std::vector of eigen vectors, used for kd_tree
-    PlatedCloud plated_cloud_;
+    std::vector<Vec> plated_cloud_;
     /// nanoflann based k dimensional tree for finding nearest neighbor of 
     /// particle, have to use smart pointer here due to how KDTree is set up
     std::unique_ptr<KDTree> kd_tree_;
+    /// Object handles storing plated in cell structure
+    Cells cells_;
     //// tracks radius of cluster, distance from origin to furthest plated
     float radius_;
     /// random number generator

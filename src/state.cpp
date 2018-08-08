@@ -19,7 +19,7 @@ const int State::kDims = DIMENSIONS;
 
 /// @brief Writes current plated configuartion to a .xyz file.
 ///
-void State::write_xyz() {
+void State::write_xyz() const {
     int N_plated = plated_cloud_.size();
     std::ofstream xyz_file;
     std::string path = ("frame_" + std::to_string(N_plated) + ".xyz");
@@ -51,7 +51,7 @@ void State::write_xyz() {
 /// @returns squared_distance: the squared distance between particle and 
 ///     nearest neighbor plated
 ///
-float State::find_nearest_neighbor() {
+float State::find_nearest_neighbor() const {
     const size_t k = 1;
     size_t index;
     float squared_distance;
@@ -68,7 +68,7 @@ float State::find_nearest_neighbor() {
 /// Note that running two trajectories starting from the same serialized state
 /// should produce exactly the same results.
 ///
-void State::save_state() {
+void State::save_state() const {
     std::string restart_string = ("restart_" + 
 				  std::to_string(plated_cloud_.size()) + 
 				  ".ser");
@@ -77,7 +77,7 @@ void State::save_state() {
 
     std::vector<std::vector<float>> serialize_plated;
     for (auto p : plated_cloud_) {
-	std::vector<float> v(p.data(), p.data() + p.size());
+	std::vector<float> v(p.data(), p.data() + kDims);
 	serialize_plated.push_back(v);
     }
     archive & serialize_plated;
@@ -116,6 +116,8 @@ void State::load_state(std::string load_path, int max_leaf_size) {
 	    radius_ = v.norm();
 	}
 	plated_cloud_.push_back(v);
+	// reconstruct cells
+	cells_.add_to_cells(v);
     }
 
     // load state of random number generator

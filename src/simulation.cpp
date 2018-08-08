@@ -6,7 +6,6 @@
 
 #include <iostream>
 #include <cmath>
-#include <stdexcept>
 #include <fstream>
 #include <cassert>
 #include <sstream>
@@ -132,6 +131,7 @@ std::string Simulation::initialize_params() {
 /// @param restart_path: path of file that may contain saved state
 ///
 void Simulation::set_up_state(std::string restart_path) {
+    state_.cells_.set_up_cells(cell_length_);
     if (!restart_path.empty()) {
 	std::cout << "Restarting from file " << restart_path << std::endl;
         state_.load_state(restart_path, max_leaf_size_);
@@ -148,6 +148,8 @@ void Simulation::set_up_state(std::string restart_path) {
         (*(*state_.kd_tree_).index).addPoints(0, 0);
 	state_.radius_ = 0;
 
+	state_.cells_.add_to_cells(state_.plated_cloud_.at(0));
+
 	// set up rng
 	state_.gen_ = std::mt19937(seed_);
 	state_.uniform_ = State::Uniform(0.0, 1.0);
@@ -163,9 +165,9 @@ void Simulation::set_up_state(std::string restart_path) {
 ///
 /// @returns result: vector representing random point
 ///
-Simulation::Vec Simulation::generate_point_on_ball(int kDims, float radius,
-						   std::mt19937 & gen,
-						   State::Uniform & uniform) {
+Vec Simulation::generate_point_on_ball(int kDims, float radius, 
+				       std::mt19937 & gen, 
+				       State::Uniform & uniform) {
     Vec result;
     float theta = 2.0 * M_PI * uniform(gen);
     if (kDims == 2) {
@@ -197,7 +199,7 @@ Simulation::Vec Simulation::generate_point_on_ball(int kDims, float radius,
 ///
 /// @returns jump: jump drawn from truncated normal distribution 
 ///
-Simulation::Vec Simulation::generate_jump() {
+Vec Simulation::generate_jump() {
     Vec jump;
     for (int i = 0; i < Simulation::kDims; i++) {
 	jump(i) = state_.uniform_(state_.gen_);
@@ -212,7 +214,7 @@ Simulation::Vec Simulation::generate_jump() {
     boost::math::normal_distribution<float> normal;
     float phi = boost::math::cdf(normal, jump_cutoff_);
     float tmp;
-    for (int i = 0; i < jump.size(); i++) {
+    for (int i = 0; i < kDims; i++) {
 	// use property that phi(-x) = 1 - phi(x) 
 	tmp = jump[i] * (2.0 * phi - 1.0);
 	tmp = (1.0 - phi) + tmp;
@@ -234,24 +236,10 @@ Simulation::Vec Simulation::generate_jump() {
 ///
 float Simulation::calculate_collisions(Vec jump_unit_vector, 
 				       float jump_length, Vec jump) {
-    // this may becom deprecated when switch is made to cell hash
-    //
-    // find neighbors within max interaction length, cell_length_^2
-    // neighbors has one pair for each neighbor
-    // first element in pair is index of neighbor in plated_cloud_
-    // second element is squared distance between that plated and particle
-    std::vector<std::pair<size_t, float>> neighbors;
-    typedef nanoflann::RadiusResultSet<float, size_t> RadiusResultSet;
-    RadiusResultSet result_set(std::pow(cell_length_, 2), neighbors);
-    (*(*state_.kd_tree_).index).findNeighbors(result_set, 
-					      state_.particle_.data(), 
-					      nanoflann::SearchParams());
-
     int diameter = 2;
     // minimum distance along jump vector at which particle contacts a plated
     float minimum_contact_distance = std::numeric_limits<float>::infinity();
-    for (auto n : neighbors) {
-	Vec plated_r = state_.plated_cloud_[n.first];
+    for (auto plated_r : state_.cells_.get_neighbors(state_.particle_)) {
 
 	// check to make sure did not start too close to plated
         if ((state_.particle_ - plated_r).norm() <= 
@@ -347,6 +335,8 @@ bool Simulation::resolve_jump(float minimum_contact_distance,
 	// add new plated in cluster to tree
 	size_t new_index = state_.plated_cloud_.size() - 1; 
         (*(*state_.kd_tree_).index).addPoints(new_index, new_index);
+	// add newly plated to cells
+	state_.cells_.add_to_cells(state_.particle_);
 	// update cluster radius if necessary
 	float newly_plated_radius = state_.particle_.norm();
 	if (newly_plated_radius > state_.radius_) {
@@ -375,6 +365,28 @@ bool Simulation::step_forward() {
 			      jump_unit_vector);
     return stuck; 
 }
+
+/// @brief Analytically samples position where particle on the outside of a
+/// ball hits the ball.
+///
+/// See latex document that derives these formulas.
+///
+/// @param kDims: the dimensions of the ball
+/// @param particle: the position vector of the particle
+/// @param radius: the radius of the ball that particle will hit
+/// @param[out] gen: random number generator
+/// @param[out] distribution: random number uniform distribution over [0, 1)
+///
+/// @returns result: vector on ball which is a sample 
+///
+Vec Simulation::sample_first_hit(int kDims, Vec particle, float radius,
+				 std::mt19937 & gen, 
+				 State::Uniform & uniform) {
+    Vec result;
+    result = generate_point_on_ball(kDims, radius, gen, uniform);
+    return result;
+}
+
 
 /// @brief Coordinates running simulation.
 ///
@@ -417,11 +429,12 @@ void Simulation::run_simulation() {
 		stuck = step_forward();
 	    }
 	    // see if particle crossed boundary, if it did regenerate it
-	    if (!stuck && state_.particle_.norm() > 3 * generation_radius) {
-		state_.particle_ = generate_point_on_ball(kDims, 
-							  generation_radius, 
-							  state_.gen_, 
-							  state_.uniform_);
+	    if (!stuck && state_.particle_.norm() > 
+		generation_radius + kSpatialEpsilon) {
+		state_.particle_ = sample_first_hit(kDims, state_.particle_,
+						    generation_radius,
+						    state_.gen_, 
+						    state_.uniform_);
 	    }
 	}
 	if (i % write_frame_interval_ == 0) {

@@ -12,7 +12,7 @@
 // use eigen for vector operations
 #include <Eigen/Dense>
 
-#include "KDTreeVectorOfVectorsAdaptor.h"
+#include "vec.hpp"
 #include "state.hpp"
 
 /// @brief Simulation class which runs all calculations.
@@ -33,11 +33,15 @@
 /// Working with floats since the process is inherently Brownian so precision 
 /// is not important.
 ///
-/// All distance computations are run through the nanoflann library, see:
+/// All nearest neighbor computations for exact dynamics are run through the 
+/// nanoflann library, see:
 ///
 /// https://github.com/jlblancoc/nanoflann
 ///
 /// As a result of this, plated (plated particles) are maintained in a kd tree.
+///
+/// For approximate dynamics, plated are stored in a (super) cells structure,
+/// see @ref Cells.
 ///
 /// Works for two or three dimensions. Set during compile time.
 ///
@@ -45,8 +49,6 @@ class Simulation {
 public:
     Simulation();
     ~Simulation();
-    
-    typedef Eigen::Matrix<float, DIMENSIONS, 1> Vec;
 
     // Documented in the cpp
     static const int kDims;
@@ -66,6 +68,8 @@ private:
     bool resolve_jump(float minimum_contact_distance, Vec jump, 
 		      Vec jump_unit_vector);
     bool step_forward();
+    Vec sample_first_hit(int kDims, Vec particle, float radius,
+			 std::mt19937 & gen, State::Uniform & uniform);
 
     // Essential physical variables.
     
@@ -91,8 +95,8 @@ private:
 
     // Internal simulation parameters 
     
-    /// Cells are cubic, side length of each cube is the max length particle 
-    /// can jump in one dt_ plus one diameter + epsilon
+    /// Cells are square/cubic, side length of each square/cube is the max 
+    /// length particle can jump in one dt_ plus one diameter + epsilon
     /// ensures all collisions can be resolved
     float cell_length_;
     /// optimization parameter for kd tree
