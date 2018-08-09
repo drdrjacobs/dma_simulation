@@ -27,7 +27,7 @@ Cells::CellMap& Cells::get_cell_map() {
 ///
 /// @param cell_length: the length of each cell
 ///
-void Cells::set_up_cells(float cell_length) {
+void Cells::set_up_cells(double cell_length) {
     cell_length_ = cell_length;
 }
 

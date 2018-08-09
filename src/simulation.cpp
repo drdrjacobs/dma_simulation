@@ -1,4 +1,4 @@
- /// @file
+/// @file
 ///
 /// @brief Implementation of the Simulation class which coordinates all
 /// calculations.
@@ -18,8 +18,8 @@
 // define globals
 const int Simulation::kDims = DIMENSIONS;
 const std::string Simulation::kParamsFilename = "params.txt";
-/// small epsilon used in distance calculations, float so added f
-const float Simulation::kSpatialEpsilon = 0.001f;
+/// small epsilon used in distance calculations
+const double Simulation::kSpatialEpsilon = 0.0001;
 
 /// @brief Constructor starts simulation.
 ///
@@ -81,12 +81,12 @@ std::string Simulation::initialize_params() {
     }
 
     write_frame_interval_ = std::stoi(params_map["write_frame_interval"]);
-    cluster_size_ = static_cast <int> (std::stof(params_map["cluster_size"]));
+    cluster_size_ = static_cast <int> (std::stod(params_map["cluster_size"]));
     max_leaf_size_ = std::stoi(params_map["max_leaf_size"]);
     seed_ = std::stoi(params_map["seed"]);
 
     // set expected length of particle movement in 2d or 3d
-    float rms_jump_size = std::stof(params_map["rms_jump_size"]);
+    double rms_jump_size = std::stod(params_map["rms_jump_size"]);
     // in one dimensional Brownian motion, the rms length of paticle step is 
     // sqrt(2 * D * dt_), in reduced units the D disappears 
     // so
@@ -94,16 +94,16 @@ std::string Simulation::initialize_params() {
     dt_ = std::pow(rms_jump_size, 2) / (2 * kDims);
 
     // set jump_cutoff_ for cell based spatial parallelism
-    jump_cutoff_ = std::stof(params_map["jump_cutoff"]);
+    jump_cutoff_ = std::stod(params_map["jump_cutoff"]);
     // cell length must be larger than maximum jump size + 2 * diameter + 
     // epsilon so that all collisions can be resolved
     int diameter = 2;
-    float max_jump_length = std::sqrt(2 * kDims * dt_) * jump_cutoff_;
+    double max_jump_length = std::sqrt(2 * kDims * dt_) * jump_cutoff_;
     std::cout << "max_jump_length = " << max_jump_length << std::endl;
     cell_length_ = max_jump_length + diameter + kSpatialEpsilon;
     std::cout << "cell_length_ = " << cell_length_ << std::endl;
 
-    float fraction_max_kappa = std::stof(params_map["fraction_max_kappa"]);
+    double fraction_max_kappa = std::stod(params_map["fraction_max_kappa"]);
     // this line is confusing,
     // 
     // p_max = kappa_max * sqrt(dt) = 1.0 
@@ -116,7 +116,7 @@ std::string Simulation::initialize_params() {
     std::cout << "p_ = fraction_max_kappa = " << p_ << std::endl;
     
     // kappa = p_ / sqrt(dt) 
-    float kappa = p_ / std::sqrt(dt_);
+    double kappa = p_ / std::sqrt(dt_);
     std::cout << "da = kappa^2 = " << std::pow(kappa, 2) << std::endl << 
 	std::endl;
     
@@ -162,24 +162,24 @@ void Simulation::set_up_state(std::string restart_path) {
 ///
 /// @returns result: vector representing random point
 ///
-Vec Simulation::generate_point_on_ball(int kDims, float radius, 
+Vec Simulation::generate_point_on_ball(int kDims, double radius, 
 				       std::mt19937 & gen, 
 				       State::Uniform & uniform) {
     Vec result;
-    float theta = 2.0 * M_PI * uniform(gen);
+    double theta = 2.0 * M_PI * uniform(gen);
     if (kDims == 2) {
-	float x = std::cos(theta);
-	float y = std::sin(theta);
+	double x = std::cos(theta);
+	double y = std::sin(theta);
 	result << x, y;
 	result *= radius;
     }
     else if (kDims == 3) {
 	// need random point on sphere, see: 
 	// http://mathworld.wolfram.com/SpherePointPicking.html
-	float cos_phi = 2.0 * uniform(gen) - 1.0;
-	float x = std::sqrt(1 - std::pow(cos_phi, 2)) * std::cos(theta);
-	float y = std::sqrt(1 - std::pow(cos_phi, 2)) * std::sin(theta);
-	float z = cos_phi;
+	double cos_phi = 2.0 * uniform(gen) - 1.0;
+	double x = std::sqrt(1 - std::pow(cos_phi, 2)) * std::cos(theta);
+	double y = std::sqrt(1 - std::pow(cos_phi, 2)) * std::sin(theta);
+	double z = cos_phi;
 	result << x, y, z;
 	result *= radius;
     }
@@ -203,14 +203,14 @@ Vec Simulation::generate_jump() {
     }
     // standard deviation of parent Brownian non-truncated normal distribution
     // in one dimension
-    float standard_deviation = std::sqrt(2 * dt_);
+    double standard_deviation = std::sqrt(2 * dt_);
     // truncate after jump_cutoff_ standard deviations of the
     // non-truncated parent normal distribution.
     //
     // See: https://en.wikipedia.org/wiki/Truncated_normal_distribution
-    boost::math::normal_distribution<float> normal;
-    float phi = boost::math::cdf(normal, jump_cutoff_);
-    float tmp;
+    boost::math::normal_distribution<double> normal;
+    double phi = boost::math::cdf(normal, jump_cutoff_);
+    double tmp;
     for (int i = 0; i < kDims; i++) {
 	// use property that phi(-x) = 1 - phi(x) 
 	tmp = jump[i] * (2.0 * phi - 1.0);
@@ -231,11 +231,11 @@ Vec Simulation::generate_jump() {
 /// @returns minimum_contact_distance: distance along jump vector at which 
 ///    particle makes contact with plated, inf if no contact is made
 ///
-float Simulation::calculate_collisions(Vec jump_unit_vector, 
-				       float jump_length, Vec jump) {
+double Simulation::calculate_collisions(Vec jump_unit_vector, 
+					double jump_length, Vec jump) {
     int diameter = 2;
     // minimum distance along jump vector at which particle contacts a plated
-    float minimum_contact_distance = std::numeric_limits<float>::infinity();
+    double minimum_contact_distance = std::numeric_limits<double>::infinity();
     for (auto plated_r : state_.cells_.get_neighbors(state_.particle_)) {
 
 	// check to make sure did not start too close to plated
@@ -253,21 +253,21 @@ float Simulation::calculate_collisions(Vec jump_unit_vector,
 	Vec diff = state_.particle_ - plated_r;
 	// radius is 2, not 1 here since looking at the collision surface
 	int squared_radius = 4;
-	float discriminant = (std::pow(jump_unit_vector.dot(diff), 2) - 
-			      diff.squaredNorm() + squared_radius);
+	double discriminant = (std::pow(jump_unit_vector.dot(diff), 2) - 
+			       diff.squaredNorm() + squared_radius);
 	if (discriminant >= 0) {
 	    // line pierces sphere twice, so take the closest contact
             // ignore negative d values, means ion has to go the other
 	    // way along l
-            float d1 = -jump_unit_vector.dot(diff) + std::sqrt(discriminant);
-            float d2 = -jump_unit_vector.dot(diff) - std::sqrt(discriminant);
+            double d1 = -jump_unit_vector.dot(diff) + std::sqrt(discriminant);
+            double d2 = -jump_unit_vector.dot(diff) - std::sqrt(discriminant);
             if (d1 < 0.0) {
-                d1 = std::numeric_limits<float>::infinity();
+                d1 = std::numeric_limits<double>::infinity();
             }
             if (d2 < 0.0) {
-                d2 = std::numeric_limits<float>::infinity();
+                d2 = std::numeric_limits<double>::infinity();
             }
-            float d = std::min(d1, d2);
+            double d = std::min(d1, d2);
             if (d <= jump_length && d < minimum_contact_distance) {
 		// potential collision occured since 0 < d < jump_length
                 minimum_contact_distance = d;
@@ -284,8 +284,8 @@ float Simulation::calculate_collisions(Vec jump_unit_vector,
 	    // to diameter distance away from a plated.
 	    //
             Vec new_particle_r = state_.particle_ + jump;
-            float new_center_center_distance = (new_particle_r - 
-						plated_r).norm();
+            double new_center_center_distance = (new_particle_r - 
+						 plated_r).norm();
             // Add epsilon here to create a small skin. I think this will
 	    // resolve all stability issues.
 	    //
@@ -314,7 +314,7 @@ float Simulation::calculate_collisions(Vec jump_unit_vector,
 ///
 /// @returns stuck: true if particle sticks to plated, false otherwise
 ///
-bool Simulation::resolve_jump(float minimum_contact_distance,
+bool Simulation::resolve_jump(double minimum_contact_distance,
 			      Vec jump, Vec jump_unit_vector) {
     bool stuck = false;
     if (std::isinf(minimum_contact_distance)) {
@@ -335,7 +335,7 @@ bool Simulation::resolve_jump(float minimum_contact_distance,
 	// add newly plated to cells
 	state_.cells_.add_to_cells(state_.particle_);
 	// update cluster radius if necessary
-	float newly_plated_radius = state_.particle_.norm();
+	double newly_plated_radius = state_.particle_.norm();
 	if (newly_plated_radius > state_.radius_) {
 	    state_.radius_ = newly_plated_radius;
 	}
@@ -354,10 +354,10 @@ bool Simulation::step_forward() {
     Vec jump = generate_jump();
     // unit vector along jump and jump length, account for precision 
     Vec jump_unit_vector = ((state_.particle_ + jump) - state_.particle_);
-    float jump_length = jump_unit_vector.norm();
+    double jump_length = jump_unit_vector.norm();
     jump_unit_vector = jump_unit_vector / jump_length;
-    float minimum_contact_distance = calculate_collisions(jump_unit_vector, 
-							  jump_length, jump);
+    double minimum_contact_distance = calculate_collisions(jump_unit_vector, 
+							   jump_length, jump);
     bool stuck = resolve_jump(minimum_contact_distance, jump, 
 			      jump_unit_vector);
     return stuck; 
@@ -381,7 +381,7 @@ bool Simulation::step_forward() {
 ///
 /// @returns result: vector on ball which is a sample 
 ///
-Vec Simulation::sample_first_hit(int kDims, Vec particle, float radius,
+Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
 				 std::mt19937 & gen, 
 				 State::Uniform & uniform) {
     Vec result;
@@ -389,9 +389,9 @@ Vec Simulation::sample_first_hit(int kDims, Vec particle, float radius,
     const int Y = 1;
     if (kDims == 2) {
 	// see references in header
-	float a = particle.norm();
-	float rho = uniform(gen);
-	float nu = (a - radius) / (a + radius) * std::tan(M_PI * rho);
+	double a = particle.norm();
+	double rho = uniform(gen);
+	double nu = (a - radius) / (a + radius) * std::tan(M_PI * rho);
 	result(X) = (1 - std::pow(nu, 2)) * particle(X) - 2 * nu * particle(Y);
 	result(X) = radius / a * result(X) / (1 + std::pow(nu, 2));
 	result(Y) = (1 - std::pow(nu, 2)) * particle(Y) + 2 * nu * particle(X);
@@ -420,7 +420,7 @@ void Simulation::run_simulation() {
 	bool stuck = false;
 	// radius at which new particle should be generated at
 	// need 2 times epsilon, due to epsilon skin around particles
-	float generation_radius = (state_.radius_ + diameter + 
+	double generation_radius = (state_.radius_ + diameter + 
 				   2 * kSpatialEpsilon);
 	// position vector of diffusing particle
 	state_.particle_ = generate_point_on_ball(kDims, generation_radius, 
@@ -432,10 +432,10 @@ void Simulation::run_simulation() {
 		stuck = step_forward();
 	    }
 	    else {
-		float squared_distance = state_.find_nearest_neighbor();
+		double squared_distance = state_.find_nearest_neighbor();
 		// need 2 times epsilon, due to epsilon skin around particles
-		float jump_length = (std::sqrt(squared_distance) - diameter 
-				     - 2 * kSpatialEpsilon);
+		double jump_length = (std::sqrt(squared_distance) - diameter 
+				      - 2 * kSpatialEpsilon);
 		Vec jump = generate_point_on_ball(kDims, jump_length, 
 						  state_.gen_,
 						  state_.uniform_);
@@ -452,10 +452,11 @@ void Simulation::run_simulation() {
 	}
 	if (i % write_frame_interval_ == 0) {
 	    std::cout << "N_plated = " << i << std::endl;
-	    state_.write_xyz();
 	}
     }
+    state_.write_xyz();
     state_.save_state();
+    std::cout << "Done." << std::endl;
 }
 
 /// @brief Blank destructor.

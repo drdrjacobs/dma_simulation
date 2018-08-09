@@ -8,4 +8,4 @@
 #include <Eigen/Dense>
 
 /// Global typdef of vector with correct dimensions 
-typedef Eigen::Matrix<float, DIMENSIONS, 1> Vec;
+typedef Eigen::Matrix<double, DIMENSIONS, 1> Vec;

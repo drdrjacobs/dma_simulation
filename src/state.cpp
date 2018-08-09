@@ -51,10 +51,10 @@ void State::write_xyz() const {
 /// @returns squared_distance: the squared distance between particle and 
 ///     nearest neighbor plated
 ///
-float State::find_nearest_neighbor() const {
+double State::find_nearest_neighbor() const {
     const size_t k = 1;
     size_t index;
-    float squared_distance;
+    double squared_distance;
     (*kd_tree_).query(particle_.data(), k, &index, &squared_distance);
     return squared_distance;
 }
@@ -75,9 +75,9 @@ void State::save_state() const {
     std::ofstream stream(restart_string);
     boost::archive::binary_oarchive archive(stream);
 
-    std::vector<std::vector<float>> serialize_plated;
+    std::vector<std::vector<double>> serialize_plated;
     for (auto p : plated_cloud_) {
-	std::vector<float> v(p.data(), p.data() + kDims);
+	std::vector<double> v(p.data(), p.data() + kDims);
 	serialize_plated.push_back(v);
     }
     archive & serialize_plated;
@@ -105,7 +105,7 @@ void State::load_state(std::string load_path, int max_leaf_size) {
     std::ifstream stream(load_path);
     boost::archive::binary_iarchive archive(stream);
 
-    std::vector<std::vector<float>> serialize_plated;
+    std::vector<std::vector<double>> serialize_plated;
     archive & serialize_plated;
 
     plated_cloud_.clear();

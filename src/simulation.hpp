@@ -30,9 +30,6 @@
 /// dimension is drawn from a gaussian distrubution with a standard deviation
 /// of sqrt(2 dt), D = 1.
 ///
-/// Working with floats since the process is inherently Brownian so precision 
-/// is not important.
-///
 /// All nearest neighbor computations for exact dynamics are run through the 
 /// nanoflann library, see:
 ///
@@ -53,37 +50,37 @@ public:
     // Documented in the cpp
     static const int kDims;
     static const std::string kParamsFilename;
-    static const float kSpatialEpsilon;
+    static const double kSpatialEpsilon;
    
 private:
     void run_simulation();
     std::map<std::string, std::string> read_params_file() const;
     std::string initialize_params();
     void set_up_state(std::string restart_path);
-    Vec generate_point_on_ball(int kDims, float radius, std::mt19937 & gen,
+    Vec generate_point_on_ball(int kDims, double radius, std::mt19937 & gen,
 			       State::Uniform & distribution);
     Vec generate_jump();
-    float calculate_collisions(Vec jump_unit_vector, float jump_length, 
-			       Vec jump);
-    bool resolve_jump(float minimum_contact_distance, Vec jump, 
+    double calculate_collisions(Vec jump_unit_vector, double jump_length, 
+				Vec jump);
+    bool resolve_jump(double minimum_contact_distance, Vec jump, 
 		      Vec jump_unit_vector);
     bool step_forward();
-    Vec sample_first_hit(int kDims, Vec particle, float radius,
+    Vec sample_first_hit(int kDims, Vec particle, double radius,
 			 std::mt19937 & gen, State::Uniform & uniform);
 
     // Essential physical variables.
     
     /// Timestep, controls size of gaussian particle jumps when close to plated
     /// otherwise dynamics are exactly Brownian
-    float dt_;
+    double dt_;
     /// The max distance a particle can jump in one timestep in one dimension,
     /// in terms of the standard deviations of the non-cutoff parent normal
     /// distribution, applies when close to plated, otherwise dynamics are 
     /// exactly Brownian
-    float jump_cutoff_;
+    double jump_cutoff_;
 
     /// The sticking probability at each contact
-    float p_;
+    double p_;
     /// size of the cluster to generate
     int cluster_size_;
 
@@ -98,7 +95,7 @@ private:
     /// Cells are square/cubic, side length of each square/cube is the max 
     /// length particle can jump in one dt_ plus one diameter + epsilon
     /// ensures all collisions can be resolved
-    float cell_length_;
+    double cell_length_;
     /// optimization parameter for kd tree
     int max_leaf_size_;
     /// seed for rng

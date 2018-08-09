@@ -34,15 +34,15 @@ public:
     State() {};
     ~State() {};
     
-    typedef KDTreeVectorOfVectorsAdaptor<std::vector<Vec>, float, 
+    typedef KDTreeVectorOfVectorsAdaptor<std::vector<Vec>, double, 
 					 DIMENSIONS> KDTree;
-    typedef std::uniform_real_distribution<float> Uniform;
+    typedef std::uniform_real_distribution<double> Uniform;
 
     // Documented in the cpp
     static const int kDims;
 
     void write_xyz() const;
-    float find_nearest_neighbor() const;
+    double find_nearest_neighbor() const;
     void save_state() const;
     void load_state(std::string load_path, int max_leaf_size);
 
@@ -57,7 +57,7 @@ private:
     /// Object handles storing plated in cell structure
     Cells cells_;
     //// tracks radius of cluster, distance from origin to furthest plated
-    float radius_;
+    double radius_;
     /// random number generator
     std::mt19937 gen_;
     /// uniform [0, 1) distribution for random number generator

@@ -32,7 +32,7 @@ public:
     Cells();
     ~Cells() {};
     CellMap& get_cell_map();
-    void set_up_cells(float cell_length);
+    void set_up_cells(double cell_length);
     void add_to_cells(Vec plated);
     std::vector<Vec>& get_neighbors(Vec v);
 
@@ -48,7 +48,7 @@ private:
     /// Cells are square/cubic, side length of each square/cube is the max
     /// length particle can jump in one dt_ plus one diameter + epsilon
     /// ensures all collisions can be resolved
-    float cell_length_;
+    double cell_length_;
 
     CellIndices get_cell_indices(Vec v) const;
 };
