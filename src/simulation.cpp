@@ -10,9 +10,6 @@
 #include <cassert>
 #include <sstream>
 
-// nanoflann library for distance computations
-#include "nanoflann.hpp"
-
 #include <boost/math/distributions/normal.hpp>
 #include <boost/math/distributions/inverse_gaussian.hpp>
 
@@ -397,8 +394,6 @@ void Simulation::run_simulation() {
     set_up_state(restart_path);
     
     int diameter = 2;
-    float squared_cell_length = std::pow(cell_length_, 2);
-
     // main loop, already start with cluster size of 1
     for (int i = state_.plated_cloud_.size() + 1; i <= cluster_size_; i++) {
 	// tracks whether current particle has stuck
@@ -410,23 +405,18 @@ void Simulation::run_simulation() {
 						  state_.gen_, 
 						  state_.uniform_);
 	while (!stuck) {
-	    float squared_distance = state_.find_nearest_neighbor();
-	    // cell_length_ = max_jump_distance + diameter + epsilon is
-	    // max interaction length within one step
-	    if (squared_distance > squared_cell_length) {
-		// particle is farther than max interaction length from nearest
-		// plated so take as large a step as possible using exact
-		// Brownian dynamics
+	    if (!state_.cells_.get_neighbors(state_.particle_).empty()) {
+		// take a step forward in time since a collision is possible
+		stuck = step_forward();
+	    }
+	    else {
+		float squared_distance = state_.find_nearest_neighbor();
 		float jump_length = (std::sqrt(squared_distance) - diameter 
 				     - kSpatialEpsilon);
 		Vec jump = generate_point_on_ball(kDims, jump_length, 
 						  state_.gen_,
 						  state_.uniform_);
 		state_.particle_ += jump;
-	    }
-	    else {
-		// take a step forward in time since a collision is possible
-		stuck = step_forward();
 	    }
 	    // see if particle crossed boundary, if it did regenerate it
 	    if (!stuck && state_.particle_.norm() > 
