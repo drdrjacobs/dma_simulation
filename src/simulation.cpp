@@ -241,7 +241,7 @@ float Simulation::calculate_collisions(Vec jump_unit_vector,
 	// check to make sure did not start too close to plated
         if ((state_.particle_ - plated_r).norm() <= 
 	    diameter - kSpatialEpsilon) {
-            printf("Particle started too close to plated!\n");
+	    std::cout << "Particle started too close to plated!" << std::endl;
 	    std::exit(-1);
         }
 
@@ -368,6 +368,11 @@ bool Simulation::step_forward() {
 ///
 /// See latex document that derives these formulas.
 ///
+/// Reference is:
+///
+/// Sander, E., Sander, L. M. & Ziff, R. M. Fractals and Fractal Correlations.
+/// Comput. Phys. 8, 420 (1994).
+///
 /// @param kDims: the dimensions of the ball
 /// @param particle: the position vector of the particle
 /// @param radius: the radius of the ball that particle will hit
@@ -380,7 +385,22 @@ Vec Simulation::sample_first_hit(int kDims, Vec particle, float radius,
 				 std::mt19937 & gen, 
 				 State::Uniform & uniform) {
     Vec result;
-    result = generate_point_on_ball(kDims, radius, gen, uniform);
+    const int X = 0;
+    const int Y = 1;
+    if (kDims == 2) {
+	// see references in header
+	float a = particle.norm();
+	float rho = uniform(gen);
+	float nu = (a - radius) / (a + radius) * std::tan(M_PI * rho);
+	result(X) = (1 - std::pow(nu, 2)) * particle(X) - 2 * nu * particle(Y);
+	result(X) = radius / a * result(X) / (1 + std::pow(nu, 2));
+	result(Y) = (1 - std::pow(nu, 2)) * particle(Y) + 2 * nu * particle(X);
+	result(Y) = radius / a * result(Y) / (1 + std::pow(nu, 2));
+    }
+    else {
+	std::cout << "No first hit in 3d yet!" << std::endl;
+	exit(-1);
+    }
     return result;
 }
 
@@ -399,7 +419,9 @@ void Simulation::run_simulation() {
 	// tracks whether current particle has stuck
 	bool stuck = false;
 	// radius at which new particle should be generated at
-	float generation_radius = state_.radius_ + diameter + kSpatialEpsilon;
+	// need 2 times epsilon, due to epsilon skin around particles
+	float generation_radius = (state_.radius_ + diameter + 
+				   2 * kSpatialEpsilon);
 	// position vector of diffusing particle
 	state_.particle_ = generate_point_on_ball(kDims, generation_radius, 
 						  state_.gen_, 
@@ -411,8 +433,9 @@ void Simulation::run_simulation() {
 	    }
 	    else {
 		float squared_distance = state_.find_nearest_neighbor();
+		// need 2 times epsilon, due to epsilon skin around particles
 		float jump_length = (std::sqrt(squared_distance) - diameter 
-				     - kSpatialEpsilon);
+				     - 2 * kSpatialEpsilon);
 		Vec jump = generate_point_on_ball(kDims, jump_length, 
 						  state_.gen_,
 						  state_.uniform_);

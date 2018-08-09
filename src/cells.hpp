@@ -50,5 +50,5 @@ private:
     /// ensures all collisions can be resolved
     float cell_length_;
 
-    inline CellIndices get_cell_indices(Vec v) const;
+    CellIndices get_cell_indices(Vec v) const;
 };
