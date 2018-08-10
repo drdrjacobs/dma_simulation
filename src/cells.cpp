@@ -6,10 +6,14 @@
 #include <iostream>
 #include <cmath>
 
+#include <boost/range/adaptors.hpp>
+
 #include "cells.hpp"
 
 // define globals
 const int Cells::kDims = DIMENSIONS;
+// number of cells that must be looped over when looking for collisions
+const int Cells::kCellsToLoopOver = std::pow(3, DIMENSIONS);
 
 /// @brief Constructor, must also run set_up_cells to properly initialize.
 ///
@@ -50,35 +54,53 @@ Cells::CellIndices Cells::get_cell_indices(Vec v) const {
 /// @param plated: position vector of plated to add
 ///
 void Cells::add_to_cells(Vec plated) {
+    CellIndices indices = get_cell_indices(plated);
+    cell_map_[indices].push_back(plated);
+}
+
+/// @brief Gets cell for collision detection loop.
+///
+/// The cell the given particle is in is considered the central cell. Looping 
+/// through offset = 0, offset < kCellsToLoopOver, offset++ will end up
+/// looping through all of the cells surrounding the central cell and the 
+/// central cell itself.
+///
+/// @param particle: position vector of particle, defines central cell
+/// @param offset: determines which cell, in relation to the central cell is 
+///     examined
+///
+/// @returns cell: std::vector of plated in cell with offset compared to 
+///     central cell
+///
+const std::vector<Vec>& Cells::get_cell(Vec particle, int offset) {
     const int X = 0;
     const int Y = 1;
     const int Z = 2;
-    CellIndices indices = get_cell_indices(plated);
-    // Need to add plated to its actual cell and all surrounding 3^kDims cells
-    for (int i = -1; i < 2; i++) {
-	for (int j = -1; j < 2; j++) {
-	    CellIndices add_indices = indices;
-	    add_indices[X] += i;
-	    add_indices[Y] += j;
-	    if (kDims == 3) {
-		for (int k = -1; k < 2; k++) {
-		    add_indices[Z] = indices[Z];
-		    add_indices[Z] += k;
-		    cell_map_[add_indices].push_back(plated);
-		}
-	    }
-	    else {
-		cell_map_[add_indices].push_back(plated);
-	    }
-	}
+    CellIndices indices = get_cell_indices(particle);
+    // -1 shifts adjustment in X/Y/Z to range from -1 to 1 instead of 0     
+    // to 2
+    indices[X] = indices[X] + ((offset % 3) - 1);
+    indices[Y] = indices[Y] + ((offset % 9) / 3 - 1);
+    if (kDims == 3) {
+	indices[Z] = indices[Z] + ((offset / 9) - 1);
     }
+    std::vector<Vec>& cell = cell_map_[indices];
+    return cell;
 }
 
-/// @brief Gets all the plated in the cell of the given vector.
+/// @brief Checks to see if there are neigboring plated around position vector.
 ///
-/// @param v: the vector to get the surrounding plated for
+/// @param v: checks for neighbors at this position
 ///
-std::vector<Vec>& Cells::get_neighbors(Vec v) {
-    CellIndices indices = get_cell_indices(v);
-    return cell_map_[indices];
+/// @returns result: true if there are plated in v's cell or the cells around 
+///     v's cell, false otherwise
+///
+bool Cells::has_neighbors(Vec v) {
+    bool result = false;
+    for (int offset = 0; offset < kCellsToLoopOver; offset++) {
+	if (!get_cell(v, offset).empty()) {
+	    result = true;
+	}
+    }
+    return result;
 }

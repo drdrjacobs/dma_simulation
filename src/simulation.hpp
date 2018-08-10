@@ -37,8 +37,8 @@
 ///
 /// As a result of this, plated (plated particles) are maintained in a kd tree.
 ///
-/// For approximate dynamics, plated are stored in a (super) cells structure,
-/// see @ref Cells.
+/// For approximate dynamics, plated are stored in a cells structure, see @ref 
+/// Cells.
 ///
 /// Works for two or three dimensions. Set during compile time.
 ///

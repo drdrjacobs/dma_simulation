@@ -28,22 +28,18 @@ public:
 
     // Documented in the cpp
     static const int kDims;
+    static const int kCellsToLoopOver;
     
     Cells();
     ~Cells() {};
     CellMap& get_cell_map();
     void set_up_cells(double cell_length);
     void add_to_cells(Vec plated);
-    std::vector<Vec>& get_neighbors(Vec v);
+    const std::vector<Vec>& get_cell(Vec particle, int offset);
+    bool has_neighbors(Vec v);
 
 private:
     /// Plated are stored in an unordered_map based cells_map_ structure.
-    /// Cells are not actually cells in the regular sense, but super cells.
-    /// Each cell stores all the plated within a central spatial square/cube 
-    /// (standard cell) and all the plated in the spatial squares/cubes around 
-    /// that central cube. This creates redudancy, but that is useful for 
-    /// getting a parallel speedup. So you can replace every intance of cell 
-    /// with "super_cell" in this code.
     CellMap cell_map_;
     /// Cells are square/cubic, side length of each square/cube is the max
     /// length particle can jump in one dt_ plus one diameter + epsilon

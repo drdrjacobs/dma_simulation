@@ -95,8 +95,8 @@ std::string Simulation::initialize_params() {
 
     // set jump_cutoff_ for cell based spatial parallelism
     jump_cutoff_ = std::stod(params_map["jump_cutoff"]);
-    // cell length must be larger than maximum jump size + 2 * diameter + 
-    // epsilon so that all collisions can be resolved
+    // cell length must be larger than maximum jump size + diameter + epsilon 
+    // so that all collisions can be resolved
     int diameter = 2;
     double max_jump_length = std::sqrt(2 * kDims * dt_) * jump_cutoff_;
     std::cout << "max_jump_length = " << max_jump_length << std::endl;
@@ -236,70 +236,73 @@ double Simulation::calculate_collisions(Vec jump_unit_vector,
     int diameter = 2;
     // minimum distance along jump vector at which particle contacts a plated
     double minimum_contact_distance = std::numeric_limits<double>::infinity();
-    for (auto plated_r : state_.cells_.get_neighbors(state_.particle_)) {
+    for (int offset = 0; offset < Cells::kCellsToLoopOver; offset++) {
+	for (Vec plated_r : state_.cells_.get_cell(state_.particle_, offset)) {
+	    // check to make sure did not start too close to plated
+	    if ((state_.particle_ - plated_r).norm() <= 
+		diameter - kSpatialEpsilon) {
+		std::cout << "Particle started too close to plated!" << 
+		    std::endl;
+		std::exit(-1);
+	    }
 
-	// check to make sure did not start too close to plated
-        if ((state_.particle_ - plated_r).norm() <= 
-	    diameter - kSpatialEpsilon) {
-	    std::cout << "Particle started too close to plated!" << std::endl;
-	    std::exit(-1);
-        }
-
-	// Going to calculate point at which line defined by 
-	// jump_vector makes contact with sphere defined by 
-	// plated. See:                           
-	//
-	// https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
-	Vec diff = state_.particle_ - plated_r;
-	// radius is 2, not 1 here since looking at the collision surface
-	int squared_radius = 4;
-	double discriminant = (std::pow(jump_unit_vector.dot(diff), 2) - 
-			       diff.squaredNorm() + squared_radius);
-	if (discriminant >= 0) {
-	    // line pierces sphere twice, so take the closest contact
-            // ignore negative d values, means ion has to go the other
-	    // way along l
-            double d1 = -jump_unit_vector.dot(diff) + std::sqrt(discriminant);
-            double d2 = -jump_unit_vector.dot(diff) - std::sqrt(discriminant);
-            if (d1 < 0.0) {
-                d1 = std::numeric_limits<double>::infinity();
-            }
-            if (d2 < 0.0) {
-                d2 = std::numeric_limits<double>::infinity();
-            }
-            double d = std::min(d1, d2);
-            if (d <= jump_length && d < minimum_contact_distance) {
-		// potential collision occured since 0 < d < jump_length
-                minimum_contact_distance = d;
+	    // Going to calculate point at which line defined by 
+	    // jump_vector makes contact with sphere defined by 
+	    // plated. See:                           
+	    //
+	    // https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
+	    Vec diff = state_.particle_ - plated_r;
+	    // radius is 2, not 1 here since looking at the collision surface
+	    int squared_radius = 4;
+	    double discriminant = (std::pow(jump_unit_vector.dot(diff), 2) - 
+				   diff.squaredNorm() + squared_radius);
+	    if (discriminant >= 0) {
+		// line pierces sphere twice, so take the closest contact
+		// ignore negative d values, means ion has to go the other
+		// way along l
+		double d1 = (-jump_unit_vector.dot(diff) + 
+			     std::sqrt(discriminant));
+		double d2 = (-jump_unit_vector.dot(diff) - 
+			     std::sqrt(discriminant));
+		if (d1 < 0.0) {
+		    d1 = std::numeric_limits<double>::infinity();
+		}
+		if (d2 < 0.0) {
+		    d2 = std::numeric_limits<double>::infinity();
+		}
+		double d = std::min(d1, d2);
+		if (d <= jump_length && d < minimum_contact_distance) {
+		    // potential collision occured since 0 < d < jump_length
+		    minimum_contact_distance = d;
+		}
+	    }
+	    if (std::isinf(minimum_contact_distance)) {
+		// No contact is made according to the caclulation, however,
+		// this calculation is not perfect due to floating point
+		// precision and so may miss cases where the ion jumps very
+		// near the boundary.
+		//
+		// For this reason, need to check the endpoint separately to
+		// ensure exactly that no ion ever ends up less than or equal
+		// to diameter distance away from a plated.
+		//
+		Vec new_particle_r = state_.particle_ + jump;
+		double new_center_center_distance = (new_particle_r - 
+						     plated_r).norm();
+		// Add epsilon here to create a small skin. I think this will
+		// resolve all stability issues.
+		//
+		// The skin is needed since there is no strict guarantee that 
+		// the algorithm will find the boundary if the center-center 
+		// distance is > diameter. However, presumably if the 
+		// center-center distance > diameter + skin, there won't be any
+		// problems.
+		if (new_center_center_distance <= diameter + kSpatialEpsilon) {
+		    // contact actually was made
+		    minimum_contact_distance = jump_length;
+		}
 	    }
 	}
-	if (std::isinf(minimum_contact_distance)) {
-            // No contact is made according to the caclulation, however,
-	    // this calculation is not perfect due to floating point
-	    // precision and so may miss cases where the ion jumps very
-	    // near the boundary.
-	    //
-	    // For this reason, need to check the endpoint separately to
-	    // ensure exactly that no ion ever ends up less than or equal
-	    // to diameter distance away from a plated.
-	    //
-            Vec new_particle_r = state_.particle_ + jump;
-            double new_center_center_distance = (new_particle_r - 
-						 plated_r).norm();
-            // Add epsilon here to create a small skin. I think this will
-	    // resolve all stability issues.
-	    //
-	    // The skin is needed since there is no strict guarantee that the 
-	    // algorithm will find the boundary if the center-center distance 
-	    // is > diameter. However, presumably if the 
-	    // center-center distance > diameter + skin, there won't be any
-	    // problems.
-	    if (new_center_center_distance <= diameter + kSpatialEpsilon) {
-                // contact actually was made
-                minimum_contact_distance = jump_length;
-            }
-        }
-
     }
     return minimum_contact_distance;
 }
@@ -427,8 +430,11 @@ void Simulation::run_simulation() {
 						  state_.gen_, 
 						  state_.uniform_);
 	while (!stuck) {
-	    if (!state_.cells_.get_neighbors(state_.particle_).empty()) {
-		// take a step forward in time since a collision is possible
+	    // check to see if there are any plated in current cell or 
+	    // surrounding cells
+	    if (state_.cells_.has_neighbors(state_.particle_)) {
+		// take a step forward in time since a collision is 
+		// possible
 		stuck = step_forward();
 	    }
 	    else {
