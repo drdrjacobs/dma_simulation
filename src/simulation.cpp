@@ -18,6 +18,9 @@
 // define globals
 const int Simulation::kDims = DIMENSIONS;
 const int Simulation::kDiameter = 2;
+/// Used in collision detection loop to indicate particle has not hit any 
+/// plated
+const int Simulation::kNoCollision = 99999;
 const std::string Simulation::kParamsFilename = "params.txt";
 /// small epsilon used in distance calculations
 const double Simulation::kSpatialEpsilon = 1e-7;
@@ -229,12 +232,12 @@ Vec Simulation::generate_jump() {
 /// @param jump: vector that discribes particle jump
 ///
 /// @returns minimum_contact_distance: distance along jump vector at which 
-///    particle makes contact with plated, inf if no contact is made
+///    particle makes contact with plated, kNoCollision if no contact is made
 ///
 double Simulation::calculate_collisions(Vec jump_unit_vector, 
 					double jump_length, Vec jump) {
     // minimum distance along jump vector at which particle contacts a plated
-    double minimum_contact_distance = std::numeric_limits<double>::infinity();
+    double minimum_contact_distance = kNoCollision;
     // store details of plated that particle makes contact with
     Cells::CellIndices store_bounce_cell_indices = Cells::CellIndices();
     size_t store_bounce_plated_index = -1;
@@ -276,10 +279,10 @@ double Simulation::calculate_collisions(Vec jump_unit_vector,
 		    double d2 = (-jump_unit_vector.dot(diff) - 
 				 std::sqrt(discriminant));
 		    if (d1 < 0.0) {
-			d1 = std::numeric_limits<double>::infinity();
+			d1 = kNoCollision;
 		    }
 		    if (d2 < 0.0) {
-			d2 = std::numeric_limits<double>::infinity();
+			d2 = kNoCollision;
 		    }
 		    double d = std::min(d1, d2);
 		    if (d <= jump_length && d < minimum_contact_distance) {
@@ -289,7 +292,7 @@ double Simulation::calculate_collisions(Vec jump_unit_vector,
 			store_bounce_plated_index = i;
 		    }
 		}
-		if (std::isinf(minimum_contact_distance)) {
+		if (minimum_contact_distance == kNoCollision) {
 		    // No contact is made according to the caclulation, 
 		    // however, this calculation is not perfect due to 
 		    // floating point precision and so may miss cases where 
@@ -335,7 +338,7 @@ double Simulation::calculate_collisions(Vec jump_unit_vector,
 /// (bounce) instead.
 ///
 /// @param minimum_contact_distance: distance along jump vector at which 
-///    particle makes contact with plated, inf if no contact is made
+///    particle makes contact with plated, kNoCollision if no contact is made
 /// @param jump_unit_vector: unit vector pointing along jump, accounts for 
 ///     precision
 /// @param jump_length: length of jump along unit vector, accounts for precsion
@@ -349,7 +352,7 @@ Simulation::Status Simulation::resolve_jump(double minimum_contact_distance,
 					    double jump_length,
 					    Vec &jump) {
     Status status = free;
-    if (std::isinf(minimum_contact_distance)) {
+    if (minimum_contact_distance == kNoCollision) {
 	// no contact is made, take full jump
 	state_.particle_ += jump;
     }
@@ -415,9 +418,9 @@ bool Simulation::step_forward() {
     state_.bounce_cell_indices_ = Cells::CellIndices();
     // nonsensical index since has not bounced yet
     state_.bounce_plated_index_ = -1;
-    // minimum_contact_distance is inf if no contact is made
-    // so !isinf means contact was made
-    while (status == free && !std::isinf(minimum_contact_distance)) {
+    // if particle is free, but contact was made (2nd condition) there was a 
+    // bounce/reflection
+    while (status == free && minimum_contact_distance != kNoCollision) {
 	// unit vector along jump and jump length, account for precision 
 	Vec jump_unit_vector = ((state_.particle_ + jump) - state_.particle_);
 	double jump_length = jump_unit_vector.norm();
