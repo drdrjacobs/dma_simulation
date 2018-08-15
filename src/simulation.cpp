@@ -17,9 +17,10 @@
 
 // define globals
 const int Simulation::kDims = DIMENSIONS;
+const int Simulation::kDiameter = 2;
 const std::string Simulation::kParamsFilename = "params.txt";
 /// small epsilon used in distance calculations
-const double Simulation::kSpatialEpsilon = 0.0001;
+const double Simulation::kSpatialEpsilon = 1e-7;
 
 /// @brief Constructor starts simulation.
 ///
@@ -97,10 +98,9 @@ std::string Simulation::initialize_params() {
     jump_cutoff_ = std::stod(params_map["jump_cutoff"]);
     // cell length must be larger than maximum jump size + diameter + epsilon 
     // so that all collisions can be resolved
-    int diameter = 2;
     double max_jump_length = std::sqrt(2 * kDims * dt_) * jump_cutoff_;
     std::cout << "max_jump_length = " << max_jump_length << std::endl;
-    cell_length_ = max_jump_length + diameter + kSpatialEpsilon;
+    cell_length_ = max_jump_length + kDiameter + kSpatialEpsilon;
     std::cout << "cell_length_ = " << cell_length_ << std::endl;
 
     double fraction_max_kappa = std::stod(params_map["fraction_max_kappa"]);
@@ -163,8 +163,8 @@ void Simulation::set_up_state(std::string restart_path) {
 /// @returns result: vector representing random point
 ///
 Vec Simulation::generate_point_on_ball(int kDims, double radius, 
-				       std::mt19937 & gen, 
-				       State::Uniform & uniform) {
+				       std::mt19937 &gen, 
+				       State::Uniform &uniform) {
     Vec result;
     double theta = 2.0 * M_PI * uniform(gen);
     if (kDims == 2) {
@@ -233,137 +233,206 @@ Vec Simulation::generate_jump() {
 ///
 double Simulation::calculate_collisions(Vec jump_unit_vector, 
 					double jump_length, Vec jump) {
-    int diameter = 2;
     // minimum distance along jump vector at which particle contacts a plated
     double minimum_contact_distance = std::numeric_limits<double>::infinity();
+    // store details of plated that particle makes contact with
+    Cells::CellIndices store_bounce_cell_indices = Cells::CellIndices();
+    size_t store_bounce_plated_index = -1;
     for (int offset = 0; offset < Cells::kCellsToLoopOver; offset++) {
-	for (Vec plated_r : state_.cells_.get_cell(state_.particle_, offset)) {
-	    // check to make sure did not start too close to plated
-	    if ((state_.particle_ - plated_r).norm() <= 
-		diameter - kSpatialEpsilon) {
-		std::cout << "Particle started too close to plated!" << 
-		    std::endl;
-		std::exit(-1);
-	    }
+	Cells::CellIndices cell_indices = \
+	    state_.cells_.offset_get_cell_indices(state_.particle_, offset);
+	const std::vector<Vec>& cell = state_.cells_.get_cell(cell_indices);
+	for (size_t i = 0; i < cell.size(); i++) {
+	    // if plated is not plated that was just bounced against
+	    if (cell_indices != state_.bounce_cell_indices_ ||
+		i != state_.bounce_plated_index_) {
+		Vec plated_r = cell[i];
+		
+		// check to make sure did not start too close to plated
+		if ((state_.particle_ - plated_r).norm() <= 
+		    kDiameter - kSpatialEpsilon) {
+		    std::cout << "Particle started too close to plated!" << 
+			std::endl;
+		    std::exit(-1);
+		}
 
-	    // Going to calculate point at which line defined by 
-	    // jump_vector makes contact with sphere defined by 
-	    // plated. See:                           
-	    //
-	    // https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
-	    Vec diff = state_.particle_ - plated_r;
-	    // radius is 2, not 1 here since looking at the collision surface
-	    int squared_radius = 4;
-	    double discriminant = (std::pow(jump_unit_vector.dot(diff), 2) - 
-				   diff.squaredNorm() + squared_radius);
-	    if (discriminant >= 0) {
-		// line pierces sphere twice, so take the closest contact
-		// ignore negative d values, means ion has to go the other
-		// way along l
-		double d1 = (-jump_unit_vector.dot(diff) + 
-			     std::sqrt(discriminant));
-		double d2 = (-jump_unit_vector.dot(diff) - 
-			     std::sqrt(discriminant));
-		if (d1 < 0.0) {
-		    d1 = std::numeric_limits<double>::infinity();
-		}
-		if (d2 < 0.0) {
-		    d2 = std::numeric_limits<double>::infinity();
-		}
-		double d = std::min(d1, d2);
-		if (d <= jump_length && d < minimum_contact_distance) {
-		    // potential collision occured since 0 < d < jump_length
-		    minimum_contact_distance = d;
-		}
-	    }
-	    if (std::isinf(minimum_contact_distance)) {
-		// No contact is made according to the caclulation, however,
-		// this calculation is not perfect due to floating point
-		// precision and so may miss cases where the ion jumps very
-		// near the boundary.
+		// Going to calculate point at which line defined by 
+		// jump_vector makes contact with sphere defined by 
+		// plated. See:                           
 		//
-		// For this reason, need to check the endpoint separately to
-		// ensure exactly that no ion ever ends up less than or equal
-		// to diameter distance away from a plated.
-		//
-		Vec new_particle_r = state_.particle_ + jump;
-		double new_center_center_distance = (new_particle_r - 
-						     plated_r).norm();
-		// Add epsilon here to create a small skin. I think this will
-		// resolve all stability issues.
-		//
-		// The skin is needed since there is no strict guarantee that 
-		// the algorithm will find the boundary if the center-center 
-		// distance is > diameter. However, presumably if the 
-		// center-center distance > diameter + skin, there won't be any
-		// problems.
-		if (new_center_center_distance <= diameter + kSpatialEpsilon) {
-		    // contact actually was made
-		    minimum_contact_distance = jump_length;
+		// https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
+		Vec diff = state_.particle_ - plated_r;
+		// radius is 2, not 1 here since looking at the collision 
+		// surface
+		int squared_radius = 4;
+		double discriminant = (std::pow(jump_unit_vector.dot(diff), 2)
+				       - diff.squaredNorm() + squared_radius);
+		if (discriminant >= 0) {
+		    // line pierces sphere twice, so take the closest contact
+		    // ignore negative d values, means ion has to go the other
+		    // way along l
+		    double d1 = (-jump_unit_vector.dot(diff) + 
+				 std::sqrt(discriminant));
+		    double d2 = (-jump_unit_vector.dot(diff) - 
+				 std::sqrt(discriminant));
+		    if (d1 < 0.0) {
+			d1 = std::numeric_limits<double>::infinity();
+		    }
+		    if (d2 < 0.0) {
+			d2 = std::numeric_limits<double>::infinity();
+		    }
+		    double d = std::min(d1, d2);
+		    if (d <= jump_length && d < minimum_contact_distance) {
+			// potential collision since 0 < d < jump_length
+			minimum_contact_distance = d;
+			store_bounce_cell_indices = cell_indices;
+			store_bounce_plated_index = i;
+		    }
+		}
+		if (std::isinf(minimum_contact_distance)) {
+		    // No contact is made according to the caclulation, 
+		    // however, this calculation is not perfect due to 
+		    // floating point precision and so may miss cases where 
+		    // the ion jumps very near the boundary.
+		    //
+		    // For this reason, need to check the endpoint separately 
+		    // to ensure exactly that no ion ever ends up less than or 
+		    // equal to diameter distance away from a plated.
+		    //
+		    Vec new_particle_r = state_.particle_ + jump;
+		    double new_center_center_distance = (new_particle_r - 
+							 plated_r).norm();
+		    // Add epsilon here to create a small skin. I think this 
+		    // will resolve all stability issues.
+		    //
+		    // The skin is needed since there is no strict guarantee 
+		    // that the algorithm will find the boundary if the 
+		    // center-center distance is > diameter. However, 
+		    // presumably if the 
+		    // center-center distance > diameter + skin, there won't 
+		    // be any problems.
+		    if (new_center_center_distance <= 
+			kDiameter + kSpatialEpsilon) {
+			// contact actually was made
+			minimum_contact_distance = jump_length;
+			store_bounce_cell_indices = cell_indices;
+			store_bounce_plated_index = i;
+		    }
 		}
 	    }
 	}
     }
+    // update tracking of plated that was bounced off of
+    state_.bounce_cell_indices_ = store_bounce_cell_indices;
+    state_.bounce_plated_index_ = store_bounce_plated_index;
     return minimum_contact_distance;
 }
 
-/// @brief Moves particle along given jump and updates simulation state.
+/// @brief Moves particle along given jump, updates jump if bounce occurs 
+/// and updates simulation state.
+///
+/// If particle hits plated and does not stick, does a specular reflection
+/// (bounce) instead.
 ///
 /// @param minimum_contact_distance: distance along jump vector at which 
 ///    particle makes contact with plated, inf if no contact is made
-/// @param jump: vector that discribes particle jump
 /// @param jump_unit_vector: unit vector pointing along jump, accounts for 
 ///     precision
+/// @param jump_length: length of jump along unit vector, accounts for precsion
+/// @param jump[out]: vector that discribes particle jump, updated with
+///     new direction and length if bounce occurs
 ///
 /// @returns stuck: true if particle sticks to plated, false otherwise
 ///
-bool Simulation::resolve_jump(double minimum_contact_distance,
-			      Vec jump, Vec jump_unit_vector) {
-    bool stuck = false;
+Simulation::Status Simulation::resolve_jump(double minimum_contact_distance,
+					    Vec jump_unit_vector, 
+					    double jump_length,
+					    Vec &jump) {
+    Status status = free;
     if (std::isinf(minimum_contact_distance)) {
-	// no cantact is made, take full jump
+	// no contact is made, take full jump
 	state_.particle_ += jump;
     }
-    else if (!std::isinf(minimum_contact_distance) && 
-	     state_.uniform_(state_.gen_) < p_) {
+    else {
 	// collision has occured
-	stuck = true;
 	// put particle in contact with plated
-	state_.particle_ += minimum_contact_distance * jump_unit_vector;
-	// add particle to cluster
-        state_.plated_cloud_.push_back(state_.particle_);
-	// add new plated in cluster to tree
-	size_t new_index = state_.plated_cloud_.size() - 1; 
-        (*(*state_.kd_tree_).index).addPoints(new_index, new_index);
-	// add newly plated to cells
-	state_.cells_.add_to_cells(state_.particle_);
-	// update cluster radius if necessary
-	double newly_plated_radius = state_.particle_.norm();
-	if (newly_plated_radius > state_.radius_) {
-	    state_.radius_ = newly_plated_radius;
+	state_.particle_ += minimum_contact_distance * jump_unit_vector;    
+	if (state_.uniform_(state_.gen_) < p_) {
+	    // particle stuck
+	    status = stuck;
+	    // add particle to cluster
+	    state_.plated_cloud_.push_back(state_.particle_);
+	    // add new plated in cluster to tree
+	    size_t new_index = state_.plated_cloud_.size() - 1; 
+	    (*(*state_.kd_tree_).index).addPoints(new_index, new_index);
+	    // add newly plated to cells
+	    state_.cells_.add_to_cells(state_.particle_);
+	    // update cluster radius if necessary
+	    double newly_plated_radius = state_.particle_.norm();
+	    if (newly_plated_radius > state_.radius_) {
+		state_.radius_ = newly_plated_radius;
+	    }
+	}
+	else {
+	    // bounce
+	    const std::vector<Vec>& cell = \
+		state_.cells_.get_cell(state_.bounce_cell_indices_);
+	    Vec plated_r = cell[state_.bounce_plated_index_];
+	    // unit normal to sphere at collision point
+	    Vec unit_normal = state_.particle_ - plated_r;
+	    unit_normal = unit_normal / unit_normal.norm();
+	    jump = jump_unit_vector * (jump_length - minimum_contact_distance);
+	    // minus sign since dot product will be negative
+	    jump = jump - 2 * jump.dot(unit_normal) * unit_normal;
+	    Vec new_particle = state_.particle_ + jump;
+	    double new_center_center_distance =  (new_particle - 
+						  plated_r).norm();
+	    if (new_center_center_distance <= kDiameter + kSpatialEpsilon) {
+		// new jump will not get particle out of contact with plated
+		// rejection move instead
+		status = rejection;
+		state_.particle_ = state_.initial_particle_;    
+		std::cout << "rejection!" << std::endl;
+	    }
 	}
     }
-    // otherwise, contact made, but no sticking, rejection move for now
-    return stuck;
+    return status;
 }
 
 /// @brief Take a small step forward in time.
 ///
 /// Farms out work to series of helper methods.
 ///
-/// @returns stuck: true if particle sticks to cluster
+/// @returns stuck_boolean: true if particle sticks to cluster
 ///
 bool Simulation::step_forward() {
     Vec jump = generate_jump();
-    // unit vector along jump and jump length, account for precision 
-    Vec jump_unit_vector = ((state_.particle_ + jump) - state_.particle_);
-    double jump_length = jump_unit_vector.norm();
-    jump_unit_vector = jump_unit_vector / jump_length;
-    double minimum_contact_distance = calculate_collisions(jump_unit_vector, 
-							   jump_length, jump);
-    bool stuck = resolve_jump(minimum_contact_distance, jump, 
-			      jump_unit_vector);
-    return stuck; 
+    // set to dummy value so that gets into while loop to start
+    double minimum_contact_distance = -1;
+    Status status = free;
+    state_.initial_particle_ = state_.particle_;
+    // defualt indices, won't matter since bounce_plated_index will not match
+    state_.bounce_cell_indices_ = Cells::CellIndices();
+    // nonsensical index since has not bounced yet
+    state_.bounce_plated_index_ = -1;
+    // minimum_contact_distance is inf if no contact is made
+    // so !isinf means contact was made
+    while (status == free && !std::isinf(minimum_contact_distance)) {
+	// unit vector along jump and jump length, account for precision 
+	Vec jump_unit_vector = ((state_.particle_ + jump) - state_.particle_);
+	double jump_length = jump_unit_vector.norm();
+	jump_unit_vector = jump_unit_vector / jump_length;
+	minimum_contact_distance = calculate_collisions(jump_unit_vector, 
+							jump_length, jump);
+	status = resolve_jump(minimum_contact_distance, 
+			      jump_unit_vector, jump_length,
+			      jump);
+    }
+    bool stuck_boolean = false;
+    if (status == stuck) {
+	stuck_boolean = true;
+    }
+    return stuck_boolean; 
 }
 
 /// @brief Analytically samples position where particle on the outside of a
@@ -385,8 +454,8 @@ bool Simulation::step_forward() {
 /// @returns result: vector on ball which is a sample 
 ///
 Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
-				 std::mt19937 & gen, 
-				 State::Uniform & uniform) {
+				 std::mt19937 &gen, 
+				 State::Uniform &uniform) {
     Vec result;
     if (kDims == 2) {
 	const int X = 0;
@@ -418,7 +487,7 @@ Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
     return result;
 }
 
-/// @brief Analytically samples position where particle thehits sphere given 
+/// @brief Analytically samples position where the particle hits sphere given 
 /// that it does hit the sphere
 ///
 /// See first-hit_distribution_in_3d.pdf that derives these formulas for 3d.
@@ -435,8 +504,8 @@ Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
 ///     distribution, given that particle hits the sphere
 ///
 Vec Simulation::sample_first_hit_3d(Vec particle, double radius,
-				    std::mt19937 & gen, 
-				    State::Uniform & uniform) {
+				    std::mt19937 &gen, 
+				    State::Uniform &uniform) {
     Vec result;
     const int X = 0;
     const int Y = 1;
@@ -455,7 +524,21 @@ Vec Simulation::sample_first_hit_3d(Vec particle, double radius,
     result(X) = radius * std::sin(theta) * std::cos(phi);
     result(Y) = radius * std::sin(theta) * std::sin(phi);
     result(Z) = radius * std::cos(theta);
-	    
+    result = first_hit_3d_rotation(result, particle);
+    return result;
+}
+
+/// @brief Rotates hit vector to be in correct orientation with respect to 
+/// the particle.
+///
+/// @param hit_vector: where the particle hits the sphere in the reference 
+///     frame where the particle lies on the z axis
+/// @param particle: the position of the particle
+///
+/// @returns result: the rotated hit vector
+///
+Vec Simulation::first_hit_3d_rotation(Vec hit_vector, Vec particle) {
+    Vec result = hit_vector;
     // need to rotate result so that z axis points along
     // particle vector
     Vec particle_unit_vector = particle / particle.norm();
@@ -487,14 +570,13 @@ void Simulation::run_simulation() {
     std::string restart_path = initialize_params();
     set_up_state(restart_path);
     
-    int diameter = 2;
     // main loop, already start with cluster size of 1
     for (int i = state_.plated_cloud_.size() + 1; i <= cluster_size_; i++) {
 	// tracks whether current particle has stuck
 	bool stuck = false;
 	// radius at which new particle should be generated at
 	// need 2 times epsilon, due to epsilon skin around particles
-	double generation_radius = (state_.radius_ + diameter + 
+	double generation_radius = (state_.radius_ + kDiameter + 
 				   2 * kSpatialEpsilon);
 	// position vector of diffusing particle
 	state_.particle_ = generate_point_on_ball(kDims, generation_radius, 
@@ -511,7 +593,7 @@ void Simulation::run_simulation() {
 	    else {
 		double squared_distance = state_.find_nearest_neighbor();
 		// need 2 times epsilon, due to epsilon skin around particles
-		double jump_length = (std::sqrt(squared_distance) - diameter 
+		double jump_length = (std::sqrt(squared_distance) - kDiameter 
 				      - 2 * kSpatialEpsilon);
 		Vec jump = generate_point_on_ball(kDims, jump_length, 
 						  state_.gen_,
@@ -529,6 +611,7 @@ void Simulation::run_simulation() {
 	}
 	if (i % write_frame_interval_ == 0) {
 	    std::cout << "N_plated = " << i << std::endl;
+	    state_.write_xyz();
 	}
     }
     state_.write_xyz();

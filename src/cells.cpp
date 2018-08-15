@@ -58,7 +58,7 @@ void Cells::add_to_cells(Vec plated) {
     cell_map_[indices].push_back(plated);
 }
 
-/// @brief Gets cell for collision detection loop.
+/// @brief Gets the cell indicies for a given position vector and offset.
 ///
 /// The cell the given particle is in is considered the central cell. Looping 
 /// through offset = 0, offset < kCellsToLoopOver, offset++ will end up
@@ -69,10 +69,10 @@ void Cells::add_to_cells(Vec plated) {
 /// @param offset: determines which cell, in relation to the central cell is 
 ///     examined
 ///
-/// @returns cell: std::vector of plated in cell with offset compared to 
-///     central cell
+/// @returns indices: indices of cell with offset compared to central cell
 ///
-const std::vector<Vec>& Cells::get_cell(Vec particle, int offset) {
+Cells::CellIndices Cells::offset_get_cell_indices(Vec particle, 
+						  int offset) const {
     const int X = 0;
     const int Y = 1;
     const int Z = 2;
@@ -84,7 +84,24 @@ const std::vector<Vec>& Cells::get_cell(Vec particle, int offset) {
     if (kDims == 3) {
 	indices[Z] = indices[Z] + ((offset / 9) - 1);
     }
-    std::vector<Vec>& cell = cell_map_[indices];
+    return indices;
+}
+
+/// @brief Returns reference to cell with given indices.
+///
+/// Returns reference to empty_cell_ if indices not found in cell_map_.
+///
+/// @param cell_indices: the indices of the cell to get
+///
+/// @returns cell: cell with given indices or empty_cell_ if indices not in 
+///     cell_map_
+///
+const std::vector<Vec>& Cells::get_cell(CellIndices cell_indices) const {
+    auto i = cell_map_.find(cell_indices);
+    // Cannot use if statement here since const reference needs to be assigned
+    // in one line, ternary operator instead
+    const std::vector<Vec>& cell = ((i == cell_map_.end()) ? 
+				    empty_cell_ : cell_map_.at(cell_indices));
     return cell;
 }
 
@@ -95,10 +112,11 @@ const std::vector<Vec>& Cells::get_cell(Vec particle, int offset) {
 /// @returns result: true if there are plated in v's cell or the cells around 
 ///     v's cell, false otherwise
 ///
-bool Cells::has_neighbors(Vec v) {
+bool Cells::has_neighbors(Vec v) const {
     bool result = false;
     for (int offset = 0; offset < kCellsToLoopOver; offset++) {
-	if (!get_cell(v, offset).empty()) {
+	CellIndices cell_indices = offset_get_cell_indices(v, offset);
+	if (!get_cell(cell_indices).empty()) {
 	    result = true;
 	}
     }

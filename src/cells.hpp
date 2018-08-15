@@ -35,8 +35,9 @@ public:
     CellMap& get_cell_map();
     void set_up_cells(double cell_length);
     void add_to_cells(Vec plated);
-    const std::vector<Vec>& get_cell(Vec particle, int offset);
-    bool has_neighbors(Vec v);
+    CellIndices offset_get_cell_indices(Vec particle, int offset) const;
+    const std::vector<Vec>& get_cell(CellIndices cell_indices) const;
+    bool has_neighbors(Vec v) const;
 
 private:
     /// Plated are stored in an unordered_map based cells_map_ structure.
@@ -45,6 +46,8 @@ private:
     /// length particle can jump in one dt_ plus one diameter + epsilon
     /// ensures all collisions can be resolved
     double cell_length_;
+    /// Empty cell is returned if indices not in cell map
+    std::vector<Vec> empty_cell_;
 
     CellIndices get_cell_indices(Vec v) const;
 };

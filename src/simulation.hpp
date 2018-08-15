@@ -49,10 +49,14 @@ public:
 
     // Documented in the cpp
     static const int kDims;
+    static const int kDiameter;
     static const std::string kParamsFilename;
     static const double kSpatialEpsilon;
    
 private:
+    /// Indicates outcome of forward step
+    enum Status {free, stuck, rejection};
+    
     void run_simulation();
     std::map<std::string, std::string> read_params_file() const;
     std::string initialize_params();
@@ -62,14 +66,16 @@ private:
     Vec generate_jump();
     double calculate_collisions(Vec jump_unit_vector, double jump_length, 
 				Vec jump);
-    bool resolve_jump(double minimum_contact_distance, Vec jump, 
-		      Vec jump_unit_vector);
+    Status resolve_jump(double minimum_contact_distance, 
+			Vec jump_unit_vector, double jump_length,
+			Vec &jump);
     bool step_forward();
     Vec sample_first_hit(int kDims, Vec particle, double radius,
 			 std::mt19937 & gen, State::Uniform & uniform);
     Vec sample_first_hit_3d(Vec particle, double radius,
 			    std::mt19937 & gen,
 			    State::Uniform & uniform);
+    Vec first_hit_3d_rotation(Vec hit_vector, Vec particle);
 
     // Essential physical variables.
     

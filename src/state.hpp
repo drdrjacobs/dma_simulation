@@ -62,4 +62,12 @@ private:
     std::mt19937 gen_;
     /// uniform [0, 1) distribution for random number generator
     Uniform uniform_;
+
+    // for resolving collisions
+    /// initial position of particle before step
+    Vec initial_particle_;
+    /// indices of cell containing plated that particle just bounced off of
+    Cells::CellIndices bounce_cell_indices_;
+    /// index of plated that particle just bounced off of
+    size_t bounce_plated_index_;
 };
