@@ -369,12 +369,12 @@ bool Simulation::step_forward() {
 /// @brief Analytically samples position where particle on the outside of a
 /// ball hits the ball.
 ///
-/// See latex document that derives these formulas.
-///
-/// Reference is:
+/// Reference for 2d is:
 ///
 /// Sander, E., Sander, L. M. & Ziff, R. M. Fractals and Fractal Correlations.
 /// Comput. Phys. 8, 420 (1994).
+///
+/// See first-hit_distribution_in_3d.pdf that derives these formulas for 3d.
 ///
 /// @param kDims: the dimensions of the ball
 /// @param particle: the position vector of the particle
@@ -388,9 +388,9 @@ Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
 				 std::mt19937 & gen, 
 				 State::Uniform & uniform) {
     Vec result;
-    const int X = 0;
-    const int Y = 1;
     if (kDims == 2) {
+	const int X = 0;
+	const int Y = 1;
 	// see references in header
 	double a = particle.norm();
 	double rho = uniform(gen);
@@ -400,13 +400,84 @@ Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
 	result(Y) = (1 - std::pow(nu, 2)) * particle(Y) + 2 * nu * particle(X);
 	result(Y) = radius / a * result(Y) / (1 + std::pow(nu, 2));
     }
-    else {
-	std::cout << "No first hit in 3d yet!" << std::endl;
-	exit(-1);
+    else if (kDims == 3) {
+	// see references in header
+	double alpha = particle.norm() / radius;
+	if (uniform(gen) > 1 / alpha) {
+	    // particle escapes to infinity, draw new particle from uniform
+	    result = generate_point_on_ball(kDims, radius, 
+					    state_.gen_, 
+					    state_.uniform_);
+	}
+	else {
+	    // sample first-hit distribution in 3d
+	    result = sample_first_hit_3d(particle, radius, state_.gen_, 
+					 state_.uniform_);
+	}
     }
     return result;
 }
 
+/// @brief Analytically samples position where particle thehits sphere given 
+/// that it does hit the sphere
+///
+/// See first-hit_distribution_in_3d.pdf that derives these formulas for 3d.
+///
+/// This assumes that the particle will hit the sphere. There is also a chance 
+/// the particle will escape off to infinity. This is not accounted for here.
+///
+/// @param particle: the position vector of the particle
+/// @param radius: the radius of the sphere that particle will hit
+/// @param[out] gen: random number generator
+/// @param[out] distribution: random number uniform distribution over [0, 1)
+///
+/// @returns result: vector on sphere which is sample from first-hit 
+///     distribution, given that particle hits the sphere
+///
+Vec Simulation::sample_first_hit_3d(Vec particle, double radius,
+				    std::mt19937 & gen, 
+				    State::Uniform & uniform) {
+    Vec result;
+    const int X = 0;
+    const int Y = 1;
+    const int Z = 2;
+    // see references in header
+    double alpha = particle.norm() / radius;
+    // Q is cdf
+    double Q = uniform(gen);
+    // eta = cos(theta)
+    double eta = (std::pow(alpha, 2) + 1) / (2 * alpha);
+    eta -= (std::pow((std::pow(alpha, 2) - 1), 2) / 
+	    (2 * alpha * std::pow(alpha - 1 + 2 * Q, 2)));
+    double theta = std::acos(eta);
+    double phi = uniform(gen) * 2 * M_PI;
+    // vector based on z axis
+    result(X) = radius * std::sin(theta) * std::cos(phi);
+    result(Y) = radius * std::sin(theta) * std::sin(phi);
+    result(Z) = radius * std::cos(theta);
+	    
+    // need to rotate result so that z axis points along
+    // particle vector
+    Vec particle_unit_vector = particle / particle.norm();
+    Vec z_unit_vector;
+    z_unit_vector << 0, 0, 1;
+    double angle = std::acos(z_unit_vector.dot(particle_unit_vector));
+    double epsilon = 1e-8;
+    if (angle > epsilon) {
+	// compiler macro prevents Eigen static assertions from
+	// triggering for undefined cross product in 2d even though
+	// code would never actually run
+        # if DIMENSIONS == 3
+	    Vec axis =  z_unit_vector.cross(particle_unit_vector);
+	    // cross product is not normalized
+	    axis = axis / axis.norm();
+	    Eigen::AngleAxis<double> rotation(angle, axis);
+	    result = rotation * result;
+        # endif
+    }
+    // otherwise, particle is on z axis and we're done
+    return result;
+}
 
 /// @brief Coordinates running simulation.
 ///

@@ -67,6 +67,9 @@ private:
     bool step_forward();
     Vec sample_first_hit(int kDims, Vec particle, double radius,
 			 std::mt19937 & gen, State::Uniform & uniform);
+    Vec sample_first_hit_3d(Vec particle, double radius,
+			    std::mt19937 & gen,
+			    State::Uniform & uniform);
 
     // Essential physical variables.
     
