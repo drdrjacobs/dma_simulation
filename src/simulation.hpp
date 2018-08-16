@@ -59,8 +59,8 @@ private:
     std::map<std::string, std::string> read_params_file() const;
     std::string initialize_params();
     void set_up_state(std::string restart_path);
-    Vec generate_point_on_ball(int kDims, double radius, std::mt19937 & gen,
-			       State::Uniform & distribution);
+    Vec generate_point_on_sphere(int kDims, double radius, std::mt19937 & gen,
+				 State::Uniform & distribution);
     Vec generate_jump();
     double calculate_collisions(Vec jump_unit_vector, double jump_length, 
 				Vec jump);

@@ -153,28 +153,29 @@ void Simulation::set_up_state(std::string restart_path) {
     }
 }
 
-/// @brief Finds a random point on a ball with given radius and dimension.
+/// @brief Finds a random point on an n-sphere with given radius and dimension.
 ///
-/// @param kDims: the dimensions of the ball
-/// @param radius: the radius of the ball
+/// @param kDims: n + 1, the dimension of the space the sphere is embedded in
+/// @param radius: the radius of the n-sphere
 /// @param[out] gen: random number generator
 /// @param[out] distribution: random number uniform distribution over [0, 1)
 ///
 /// @returns result: vector representing random point
 ///
-Vec Simulation::generate_point_on_ball(int kDims, double radius, 
+Vec Simulation::generate_point_on_sphere(int kDims, double radius, 
 				       std::mt19937 &gen, 
 				       State::Uniform &uniform) {
     Vec result;
     double theta = 2.0 * M_PI * uniform(gen);
     if (kDims == 2) {
+	// random point on circle
 	double x = std::cos(theta);
 	double y = std::sin(theta);
 	result << x, y;
 	result *= radius;
     }
     else if (kDims == 3) {
-	// need random point on sphere, see: 
+	// need random point on 2-sphere, see: 
 	// http://mathworld.wolfram.com/SpherePointPicking.html
 	double cos_phi = 2.0 * uniform(gen) - 1.0;
 	double x = std::sqrt(1 - std::pow(cos_phi, 2)) * std::cos(theta);
@@ -257,7 +258,7 @@ double Simulation::calculate_collisions(Vec jump_unit_vector,
 		}
 
 		// Going to calculate point at which line defined by 
-		// jump_vector makes contact with sphere defined by 
+		// jump_vector makes contact with n-sphere defined by 
 		// plated. See:                           
 		//
 		// https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
@@ -268,7 +269,7 @@ double Simulation::calculate_collisions(Vec jump_unit_vector,
 		double discriminant = (std::pow(jump_unit_vector.dot(diff), 2)
 				       - diff.squaredNorm() + squared_radius);
 		if (discriminant >= 0) {
-		    // line pierces sphere twice, so take the closest contact
+		    // line pierces n-sphere twice, so take the closest contact
 		    // ignore negative d values, means ion has to go the other
 		    // way along l
 		    double d1 = (-jump_unit_vector.dot(diff) + 
@@ -378,7 +379,7 @@ Simulation::Status Simulation::resolve_jump(double minimum_contact_distance,
 	    const std::vector<Vec>& cell = \
 		state_.cells_.get_cell(state_.bounce_cell_indices_);
 	    Vec plated_r = cell[state_.bounce_plated_index_];
-	    // unit normal to sphere at collision point
+	    // unit normal to n-sphere at collision point
 	    Vec unit_normal = state_.particle_ - plated_r;
 	    unit_normal = unit_normal / unit_normal.norm();
 	    jump = jump_unit_vector * (jump_length - minimum_contact_distance);
@@ -436,7 +437,7 @@ bool Simulation::step_forward() {
 }
 
 /// @brief Analytically samples position where particle on the outside of a
-/// ball hits the ball.
+/// n-sphere hits the n-sphere.
 ///
 /// Reference for 2d is:
 ///
@@ -445,13 +446,13 @@ bool Simulation::step_forward() {
 ///
 /// See first-hit_distribution_in_3d.pdf that derives these formulas for 3d.
 ///
-/// @param kDims: the dimensions of the ball
+/// @param kDims: n + 1, the dimension of the space the sphere is embedded in
 /// @param particle: the position vector of the particle
-/// @param radius: the radius of the ball that particle will hit
+/// @param radius: the radius of the n-sphere that particle will hit
 /// @param[out] gen: random number generator
 /// @param[out] distribution: random number uniform distribution over [0, 1)
 ///
-/// @returns result: vector on ball which is a sample 
+/// @returns result: vector on n-sphere which is a sample 
 ///
 Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
 				 std::mt19937 &gen, 
@@ -474,7 +475,7 @@ Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
 	double alpha = particle.norm() / radius;
 	if (uniform(gen) > 1 / alpha) {
 	    // particle escapes to infinity, draw new particle from uniform
-	    result = generate_point_on_ball(kDims, radius, 
+	    result = generate_point_on_sphere(kDims, radius, 
 					    state_.gen_, 
 					    state_.uniform_);
 	}
@@ -487,20 +488,21 @@ Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
     return result;
 }
 
-/// @brief Analytically samples position where the particle hits sphere given 
-/// that it does hit the sphere
+/// @brief Analytically samples position where the particle hits 2-sphere 
+/// given that it does hit the 2-sphere
 ///
 /// See first-hit_distribution_in_3d.pdf that derives these formulas for 3d.
 ///
-/// This assumes that the particle will hit the sphere. There is also a chance 
-/// the particle will escape off to infinity. This is not accounted for here.
+/// This assumes that the particle will hit the 2-sphere. There is also a 
+/// chance the particle will escape off to infinity. This is not accounted 
+/// for here.
 ///
 /// @param particle: the position vector of the particle
-/// @param radius: the radius of the sphere that particle will hit
+/// @param radius: the radius of the 2-sphere that particle will hit
 /// @param[out] gen: random number generator
 /// @param[out] distribution: random number uniform distribution over [0, 1)
 ///
-/// @returns result: vector on sphere which is sample from first-hit 
+/// @returns result: vector on 2-sphere which is sample from first-hit 
 ///     distribution, given that particle hits the sphere
 ///
 Vec Simulation::sample_first_hit_3d(Vec particle, double radius,
@@ -531,7 +533,7 @@ Vec Simulation::sample_first_hit_3d(Vec particle, double radius,
 /// @brief Rotates hit vector to be in correct orientation with respect to 
 /// the particle.
 ///
-/// @param hit_vector: where the particle hits the sphere in the reference 
+/// @param hit_vector: where the particle hits the 2-sphere in the reference 
 ///     frame where the particle lies on the z axis
 /// @param particle: the position of the particle
 ///
@@ -579,9 +581,9 @@ void Simulation::run_simulation() {
 	double generation_radius = (state_.radius_ + kDiameter + 
 				   2 * kSpatialEpsilon);
 	// position vector of diffusing particle
-	state_.particle_ = generate_point_on_ball(kDims, generation_radius, 
-						  state_.gen_, 
-						  state_.uniform_);
+	state_.particle_ = generate_point_on_sphere(kDims, generation_radius, 
+						    state_.gen_, 
+						    state_.uniform_);
 	while (!stuck) {
 	    // check to see if there are any plated in current cell or 
 	    // surrounding cells
@@ -595,9 +597,9 @@ void Simulation::run_simulation() {
 		// need 2 times epsilon, due to epsilon skin around particles
 		double jump_length = (std::sqrt(squared_distance) - kDiameter 
 				      - 2 * kSpatialEpsilon);
-		Vec jump = generate_point_on_ball(kDims, jump_length, 
-						  state_.gen_,
-						  state_.uniform_);
+		Vec jump = generate_point_on_sphere(kDims, jump_length, 
+						    state_.gen_,
+						    state_.uniform_);
 		state_.particle_ += jump;
 	    }
 	    // see if particle crossed boundary, if it did regenerate it
