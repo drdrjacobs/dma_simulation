@@ -14,16 +14,13 @@
 #include <boost/math/distributions/inverse_gaussian.hpp>
 
 #include "simulation.hpp"
+#include "constants.hpp"
 
 // define globals
-const int Simulation::kDims = DIMENSIONS;
-const int Simulation::kDiameter = 2;
 /// Used in collision detection loop to indicate particle has not hit any 
 /// plated
 const int Simulation::kNoCollision = 99999;
 const std::string Simulation::kParamsFilename = "params.txt";
-/// small epsilon used in distance calculations
-const double Simulation::kSpatialEpsilon = 1e-7;
 
 /// @brief Constructor starts simulation.
 ///
@@ -201,7 +198,7 @@ Vec Simulation::generate_point_on_ball(int kDims, double radius,
 ///
 Vec Simulation::generate_jump() {
     Vec jump;
-    for (int i = 0; i < Simulation::kDims; i++) {
+    for (int i = 0; i < kDims; i++) {
 	jump(i) = state_.uniform_(state_.gen_);
     }
     // standard deviation of parent Brownian non-truncated normal distribution

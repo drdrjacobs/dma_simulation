@@ -38,9 +38,7 @@ public:
 					 DIMENSIONS> KDTree;
     typedef std::uniform_real_distribution<double> Uniform;
 
-    // Documented in the cpp
-    static const int kDims;
-
+    int check_overlaps() const;
     void write_xyz() const;
     double find_nearest_neighbor() const;
     void save_state() const;

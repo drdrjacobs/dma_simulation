@@ -32,10 +32,12 @@ public:
     
     Cells();
     ~Cells() {};
-    CellMap& get_cell_map();
+    const CellMap& get_cell_map() const;
     void set_up_cells(double cell_length);
     void add_to_cells(Vec plated);
     CellIndices offset_get_cell_indices(Vec particle, int offset) const;
+    CellIndices offset_get_cell_indices(CellIndices central_cell, 
+					int offset) const;
     const std::vector<Vec>& get_cell(CellIndices cell_indices) const;
     bool has_neighbors(Vec v) const;
 

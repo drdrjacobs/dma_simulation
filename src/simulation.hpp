@@ -48,11 +48,8 @@ public:
     ~Simulation();
 
     // Documented in the cpp
-    static const int kDims;
-    static const int kDiameter;
     static const int kNoCollision;
     static const std::string kParamsFilename;
-    static const double kSpatialEpsilon;
    
 private:
     /// Indicates outcome of forward step

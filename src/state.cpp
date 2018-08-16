@@ -13,13 +13,60 @@
 #include <boost/serialization/vector.hpp>
 
 #include "state.hpp"
+#include "constants.hpp"
 
-// define globals
-const int State::kDims = DIMENSIONS;
+/// @brief Finds overlaps between plated.
+///
+/// @returns count: the number of pairwise overlaps found
+///
+int State::check_overlaps() const {
+    typedef Cells::CellIndices Indices;
+    int count = 0;
+    // pairwise distance of less than this threshold is an overlap
+    double threshold = kDiameter - kSpatialEpsilon;
+    // for each central cell
+    for (std::pair<Indices, std::vector<Vec>> element : 
+	     cells_.get_cell_map()) {
+	Indices central_cell_indices = element.first;
+	const std::vector<Vec>& central_cell = element.second;
+	// loop through all cells around central cell
+	for (int offset = 0; offset < Cells::kCellsToLoopOver; offset++) {
+	    Indices other_cell_indices = \
+		cells_.offset_get_cell_indices(central_cell_indices, offset);
+	    const std::vector<Vec>& other_cell = \
+		cells_.get_cell(other_cell_indices);
+	    // for each plated in central cell
+	    for (size_t i = 0; i < central_cell.size(); i++) {
+		Vec r_i = central_cell.at(i);
+		int start = 0;
+		// avoid counting self as overlap
+		if (central_cell_indices == other_cell_indices) {
+		    start = i + 1;
+		}
+		// for each plated in other cell
+		for (size_t j = start; j < other_cell.size(); j++) {
+		    Vec r_j = other_cell.at(j);
+		    double distance = (r_i - r_j).norm();
+		    if (distance <= threshold) {
+			count += 1;
+			std::cout << distance << std::endl;
+		    }
+		}
+	    }
+	}
+    }
+    return count;
+}
 
 /// @brief Writes current plated configuartion to a .xyz file.
 ///
 void State::write_xyz() const {
+    int count = check_overlaps();
+    if (count > 0) {
+	std::cout << "Found overlaps between plated!" << std::endl;
+	std::exit(-1);
+    }
+
     int N_plated = plated_cloud_.size();
     std::ofstream xyz_file;
     std::string path = ("frame_" + std::to_string(N_plated) + ".xyz");

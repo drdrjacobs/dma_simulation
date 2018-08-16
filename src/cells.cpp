@@ -23,8 +23,9 @@ Cells::Cells() {
 
 /// @brief Returns reference to cell_map_, for debugging.
 ///
-Cells::CellMap& Cells::get_cell_map() {
-    return cell_map_;
+const Cells::CellMap& Cells::get_cell_map() const {
+    const CellMap& cell_map = cell_map_;
+    return cell_map;
 }
 
 /// @brief Sets cell_length
@@ -73,16 +74,35 @@ void Cells::add_to_cells(Vec plated) {
 ///
 Cells::CellIndices Cells::offset_get_cell_indices(Vec particle, 
 						  int offset) const {
+    CellIndices indices = get_cell_indices(particle);
+    indices = offset_get_cell_indices(indices, offset);
+    return indices;
+}
+
+/// @brief Gets the cell indicies for a given cetral cell and offset.
+///
+/// Looping through offset = 0, offset < kCellsToLoopOver, offset++ will end up
+/// looping through all of the cells surrounding the central cell and the 
+/// central cell itself.
+///
+/// @param central_cell: cell indices of central cell
+/// @param offset: determines which cell, in relation to the central cell is 
+///     examined
+///
+/// @returns indices: indices of cell with offset compared to central cell
+///
+Cells::CellIndices Cells::offset_get_cell_indices(CellIndices central_cell,
+                                                  int offset) const {
     const int X = 0;
     const int Y = 1;
     const int Z = 2;
-    CellIndices indices = get_cell_indices(particle);
-    // -1 shifts adjustment in X/Y/Z to range from -1 to 1 instead of 0     
+    CellIndices indices = central_cell;
+    // -1 shifts adjustment in X/Y/Z to range from -1 to 1 instead of 0
     // to 2
     indices[X] = indices[X] + ((offset % 3) - 1);
     indices[Y] = indices[Y] + ((offset % 9) / 3 - 1);
     if (kDims == 3) {
-	indices[Z] = indices[Z] + ((offset / 9) - 1);
+        indices[Z] = indices[Z] + ((offset / 9) - 1);
     }
     return indices;
 }
