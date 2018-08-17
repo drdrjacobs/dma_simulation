@@ -22,12 +22,6 @@
 const int Simulation::kNoCollision = 99999;
 const std::string Simulation::kParamsFilename = "params.txt";
 
-/// @brief Constructor starts simulation.
-///
-Simulation::Simulation() {
-    run_simulation();
-}
-
 /// @brief Extracts parameters from params file.
 ///
 /// @returns params_map: map that contains params std::string key value pairs
@@ -121,104 +115,6 @@ std::string Simulation::initialize_params() {
 	std::endl;
     
     return restart_path;
-}
-
-/// @brief Sets up state object of simulation.
-///
-/// @param restart_path: path of file that may contain saved state
-///
-void Simulation::set_up_state(std::string restart_path) {
-    state_.cells_.set_up_cells(cell_length_);
-    if (!restart_path.empty()) {
-	std::cout << "Restarting from file " << restart_path << std::endl;
-        state_.load_state(restart_path, max_leaf_size_);
-    }
-    else {
-	// start new simulation,
-        // add single plated at origin to start
-        state_.plated_cloud_.resize(1);
-        for (int i = 0; i < kDims; i++) {
-            state_.plated_cloud_.at(0)(i) = 0;
-        }
-	state_.kd_tree_.reset(new State::KDTree(kDims, state_.plated_cloud_, 
-						max_leaf_size_));
-        (*(*state_.kd_tree_).index).addPoints(0, 0);
-	state_.radius_ = 0;
-
-	state_.cells_.add_to_cells(state_.plated_cloud_.at(0));
-
-	// set up rng
-	state_.gen_ = std::mt19937(seed_);
-	state_.uniform_ = State::Uniform(0.0, 1.0);
-    }
-}
-
-/// @brief Finds a random point on an n-sphere with given radius and dimension.
-///
-/// @param kDims: n + 1, the dimension of the space the sphere is embedded in
-/// @param radius: the radius of the n-sphere
-/// @param[out] gen: random number generator
-/// @param[out] distribution: random number uniform distribution over [0, 1)
-///
-/// @returns result: vector representing random point
-///
-Vec Simulation::generate_point_on_sphere(int kDims, double radius, 
-				       std::mt19937 &gen, 
-				       State::Uniform &uniform) {
-    Vec result;
-    double theta = 2.0 * M_PI * uniform(gen);
-    if (kDims == 2) {
-	// random point on circle
-	double x = std::cos(theta);
-	double y = std::sin(theta);
-	result << x, y;
-	result *= radius;
-    }
-    else if (kDims == 3) {
-	// need random point on 2-sphere, see: 
-	// http://mathworld.wolfram.com/SpherePointPicking.html
-	double cos_phi = 2.0 * uniform(gen) - 1.0;
-	double x = std::sqrt(1 - std::pow(cos_phi, 2)) * std::cos(theta);
-	double y = std::sqrt(1 - std::pow(cos_phi, 2)) * std::sin(theta);
-	double z = cos_phi;
-	result << x, y, z;
-	result *= radius;
-    }
-    return result;
-}
-
-/// @brief Draws Brownian jump from truncated normal distribution with 
-///     appropriate width.
-///
-/// Truncated normal distribution is implemented using the inverse transform
-/// method. Truncation occurs after certain number of standard deviations.
-///
-/// See: https://en.wikipedia.org/wiki/Truncated_normal_distribution
-///
-/// @returns jump: jump drawn from truncated normal distribution 
-///
-Vec Simulation::generate_jump() {
-    Vec jump;
-    for (int i = 0; i < kDims; i++) {
-	jump(i) = state_.uniform_(state_.gen_);
-    }
-    // standard deviation of parent Brownian non-truncated normal distribution
-    // in one dimension
-    double standard_deviation = std::sqrt(2 * dt_);
-    // truncate after jump_cutoff_ standard deviations of the
-    // non-truncated parent normal distribution.
-    //
-    // See: https://en.wikipedia.org/wiki/Truncated_normal_distribution
-    boost::math::normal_distribution<double> normal;
-    double phi = boost::math::cdf(normal, jump_cutoff_);
-    double tmp;
-    for (int i = 0; i < kDims; i++) {
-	// use property that phi(-x) = 1 - phi(x) 
-	tmp = jump[i] * (2.0 * phi - 1.0);
-	tmp = (1.0 - phi) + tmp;
-	jump[i] = boost::math::quantile(normal, tmp) * standard_deviation;
-    }
-    return jump;
 }
 
 /// @brief Finds all contacts between particle and plated along jump 
@@ -407,7 +303,7 @@ Simulation::Status Simulation::resolve_jump(double minimum_contact_distance,
 /// @returns stuck_boolean: true if particle sticks to cluster
 ///
 bool Simulation::step_forward() {
-    Vec jump = generate_jump();
+    Vec jump = generate_jump(dt_, jump_cutoff_, state_.gen_, state_.uniform_);
     // set to dummy value so that gets into while loop to start
     double minimum_contact_distance = -1;
     Status status = free;
@@ -436,6 +332,143 @@ bool Simulation::step_forward() {
     return stuck_boolean; 
 }
 
+/// @brief Coordinates running simulation.
+///
+void Simulation::run_simulation() {
+    // get simulattion parameters
+    std::cout << "DIMENSIONS = " << kDims << std::endl;
+    std::string restart_path = initialize_params();
+    if (restart_path.empty()) {
+	state_.set_up_new_state(cell_length_, max_leaf_size_, seed_);
+    }
+    else {
+	state_.load_state(cell_length_, max_leaf_size_, restart_path);
+    }
+    
+    // main loop, already start with cluster size of 1
+    for (int i = state_.plated_cloud_.size() + 1; i <= cluster_size_; i++) {
+	// tracks whether current particle has stuck
+	bool stuck = false;
+	// radius at which new particle should be generated at
+	// need 2 times epsilon, due to epsilon skin around particles
+	double generation_radius = (state_.radius_ + kDiameter + 
+				   2 * kSpatialEpsilon);
+	// position vector of diffusing particle
+	state_.particle_ = generate_point_on_sphere(generation_radius, 
+						    state_.gen_,
+						    state_.uniform_);
+	while (!stuck) {
+	    // check to see if there are any plated in current cell or 
+	    // surrounding cells
+	    if (state_.cells_.has_neighbors(state_.particle_)) {
+		// take a step forward in time since a collision is 
+		// possible
+		stuck = step_forward();
+	    }
+	    else {
+		double squared_distance = state_.find_nearest_neighbor();
+		// need 2 times epsilon, due to epsilon skin around particles
+		double jump_length = (std::sqrt(squared_distance) - kDiameter 
+				      - 2 * kSpatialEpsilon);
+		Vec jump = generate_point_on_sphere(jump_length, 
+						    state_.gen_,
+						    state_.uniform_);
+		state_.particle_ += jump;
+	    }
+	    // see if particle crossed boundary, if it did regenerate it
+	    if (!stuck && state_.particle_.norm() > 
+		generation_radius + kSpatialEpsilon) {
+		state_.particle_ = sample_first_hit(state_.particle_,
+						    generation_radius,
+						    state_.gen_, 
+						    state_.uniform_);
+	    }
+	}
+	if (i % write_frame_interval_ == 0) {
+	    std::cout << "N_plated = " << i << std::endl;
+	    state_.write_xyz();
+	}
+    }
+    state_.write_xyz();
+    state_.save_state();
+    std::cout << "Done." << std::endl;
+}
+
+/// @brief Finds a random point on an n-sphere with given radius and dimension.
+///
+/// @param radius: the radius of the n-sphere
+/// @param[out] gen: random number generator
+/// @param[out] distribution: random number uniform distribution over [0, 1)
+///
+/// @returns result: vector representing random point
+///
+Vec generate_point_on_sphere(double radius, 
+			     std::mt19937 &gen, State::Uniform &uniform) {
+    Vec result;
+    double theta = 2.0 * M_PI * uniform(gen);
+    if (kDims == 2) {
+	// random point on circle
+	double x = std::cos(theta);
+	double y = std::sin(theta);
+	result << x, y;
+	result *= radius;
+    }
+    else if (kDims == 3) {
+	// need random point on 2-sphere, see: 
+	// http://mathworld.wolfram.com/SpherePointPicking.html
+	double cos_phi = 2.0 * uniform(gen) - 1.0;
+	double x = std::sqrt(1 - std::pow(cos_phi, 2)) * std::cos(theta);
+	double y = std::sqrt(1 - std::pow(cos_phi, 2)) * std::sin(theta);
+	double z = cos_phi;
+	result << x, y, z;
+	result *= radius;
+    }
+    return result;
+}
+
+/// @brief Draws Brownian jump from truncated normal distribution with 
+///     given width.
+///
+/// Truncated normal distribution is implemented using the inverse transform
+/// method. Truncation occurs after certain number of standard deviations.
+///
+/// See: https://en.wikipedia.org/wiki/Truncated_normal_distribution
+///
+/// @param dt: the time step, determines the jump distribution standard 
+///     deviation
+/// @param jump_cutoff: max distance a particle can jump in one timestep in 
+///     one dimension, in terms of the standard deviations of the non-cutoff 
+///     parent normal distribution
+/// @param[out] gen: random number generator
+/// @param[out] distribution: random number uniform distribution over [0, 1)
+///
+/// @returns jump: jump drawn from truncated normal distribution 
+///
+Vec generate_jump(double dt, double jump_cutoff, 
+		  std::mt19937 &gen, State::Uniform &uniform) {
+    Vec jump;
+    for (int i = 0; i < kDims; i++) {
+	jump(i) = uniform(gen);
+    }
+    // standard deviation of parent Brownian non-truncated normal distribution
+    // in one dimension
+    double standard_deviation = std::sqrt(2 * dt);
+    // truncate after jump_cutoff standard deviations of the non-truncated 
+    // parent normal distribution.
+    //
+    // See: https://en.wikipedia.org/wiki/Truncated_normal_distribution
+    boost::math::normal_distribution<double> normal;
+    double phi = boost::math::cdf(normal, jump_cutoff);
+    double tmp;
+    for (int i = 0; i < kDims; i++) {
+	// use property that phi(-x) = 1 - phi(x) 
+	tmp = jump[i] * (2.0 * phi - 1.0);
+	tmp = (1.0 - phi) + tmp;
+	jump[i] = boost::math::quantile(normal, tmp) * standard_deviation;
+    }
+    return jump;
+}
+
 /// @brief Analytically samples position where particle on the outside of a
 /// n-sphere hits the n-sphere.
 ///
@@ -446,7 +479,6 @@ bool Simulation::step_forward() {
 ///
 /// See first-hit_distribution_in_3d.pdf that derives these formulas for 3d.
 ///
-/// @param kDims: n + 1, the dimension of the space the sphere is embedded in
 /// @param particle: the position vector of the particle
 /// @param radius: the radius of the n-sphere that particle will hit
 /// @param[out] gen: random number generator
@@ -454,9 +486,8 @@ bool Simulation::step_forward() {
 ///
 /// @returns result: vector on n-sphere which is a sample 
 ///
-Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
-				 std::mt19937 &gen, 
-				 State::Uniform &uniform) {
+Vec sample_first_hit(Vec particle, double radius,
+		     std::mt19937 &gen, State::Uniform &uniform) {
     Vec result;
     if (kDims == 2) {
 	const int X = 0;
@@ -471,19 +502,7 @@ Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
 	result(Y) = radius / a * result(Y) / (1 + std::pow(nu, 2));
     }
     else if (kDims == 3) {
-	// see references in header
-	double alpha = particle.norm() / radius;
-	if (uniform(gen) > 1 / alpha) {
-	    // particle escapes to infinity, draw new particle from uniform
-	    result = generate_point_on_sphere(kDims, radius, 
-					    state_.gen_, 
-					    state_.uniform_);
-	}
-	else {
-	    // sample first-hit distribution in 3d
-	    result = sample_first_hit_3d(particle, radius, state_.gen_, 
-					 state_.uniform_);
-	}
+	result = sample_first_hit_3d(particle, radius, gen, uniform);
     }
     return result;
 }
@@ -505,28 +524,35 @@ Vec Simulation::sample_first_hit(int kDims, Vec particle, double radius,
 /// @returns result: vector on 2-sphere which is sample from first-hit 
 ///     distribution, given that particle hits the sphere
 ///
-Vec Simulation::sample_first_hit_3d(Vec particle, double radius,
-				    std::mt19937 &gen, 
-				    State::Uniform &uniform) {
+Vec sample_first_hit_3d(Vec particle, double radius,
+			std::mt19937 &gen, State::Uniform &uniform) {
     Vec result;
-    const int X = 0;
-    const int Y = 1;
-    const int Z = 2;
-    // see references in header
     double alpha = particle.norm() / radius;
-    // Q is cdf
-    double Q = uniform(gen);
-    // eta = cos(theta)
-    double eta = (std::pow(alpha, 2) + 1) / (2 * alpha);
-    eta -= (std::pow((std::pow(alpha, 2) - 1), 2) / 
-	    (2 * alpha * std::pow(alpha - 1 + 2 * Q, 2)));
-    double theta = std::acos(eta);
-    double phi = uniform(gen) * 2 * M_PI;
-    // vector based on z axis
-    result(X) = radius * std::sin(theta) * std::cos(phi);
-    result(Y) = radius * std::sin(theta) * std::sin(phi);
-    result(Z) = radius * std::cos(theta);
-    result = first_hit_3d_rotation(result, particle);
+    if (uniform(gen) > 1 / alpha) {
+	// particle escapes to infinity, draw new particle from uniform
+	result = generate_point_on_sphere(radius, gen, uniform);
+    }
+    else {
+	// sample first-hit distribution in 3d given that particle does hit
+	// 2-sphere
+	const int X = 0;
+	const int Y = 1;
+	const int Z = 2;
+	// see references in header
+	// Q is cdf
+	double Q = uniform(gen);
+	// eta = cos(theta)
+	double eta = (std::pow(alpha, 2) + 1) / (2 * alpha);
+	eta -= (std::pow((std::pow(alpha, 2) - 1), 2) / 
+		(2 * alpha * std::pow(alpha - 1 + 2 * Q, 2)));
+	double theta = std::acos(eta);
+	double phi = uniform(gen) * 2 * M_PI;
+	// vector based on z axis
+	result(X) = radius * std::sin(theta) * std::cos(phi);
+	result(Y) = radius * std::sin(theta) * std::sin(phi);
+	result(Z) = radius * std::cos(theta);
+	result = first_hit_3d_rotation(result, particle);
+    }
     return result;
 }
 
@@ -539,7 +565,7 @@ Vec Simulation::sample_first_hit_3d(Vec particle, double radius,
 ///
 /// @returns result: the rotated hit vector
 ///
-Vec Simulation::first_hit_3d_rotation(Vec hit_vector, Vec particle) {
+Vec first_hit_3d_rotation(Vec hit_vector, Vec particle) {
     Vec result = hit_vector;
     // need to rotate result so that z axis points along
     // particle vector
@@ -565,63 +591,3 @@ Vec Simulation::first_hit_3d_rotation(Vec hit_vector, Vec particle) {
     return result;
 }
 
-/// @brief Coordinates running simulation.
-///
-void Simulation::run_simulation() {
-    // get simulattion parameters
-    std::cout << "DIMENSIONS = " << kDims << std::endl;
-    std::string restart_path = initialize_params();
-    set_up_state(restart_path);
-    
-    // main loop, already start with cluster size of 1
-    for (int i = state_.plated_cloud_.size() + 1; i <= cluster_size_; i++) {
-	// tracks whether current particle has stuck
-	bool stuck = false;
-	// radius at which new particle should be generated at
-	// need 2 times epsilon, due to epsilon skin around particles
-	double generation_radius = (state_.radius_ + kDiameter + 
-				   2 * kSpatialEpsilon);
-	// position vector of diffusing particle
-	state_.particle_ = generate_point_on_sphere(kDims, generation_radius, 
-						    state_.gen_, 
-						    state_.uniform_);
-	while (!stuck) {
-	    // check to see if there are any plated in current cell or 
-	    // surrounding cells
-	    if (state_.cells_.has_neighbors(state_.particle_)) {
-		// take a step forward in time since a collision is 
-		// possible
-		stuck = step_forward();
-	    }
-	    else {
-		double squared_distance = state_.find_nearest_neighbor();
-		// need 2 times epsilon, due to epsilon skin around particles
-		double jump_length = (std::sqrt(squared_distance) - kDiameter 
-				      - 2 * kSpatialEpsilon);
-		Vec jump = generate_point_on_sphere(kDims, jump_length, 
-						    state_.gen_,
-						    state_.uniform_);
-		state_.particle_ += jump;
-	    }
-	    // see if particle crossed boundary, if it did regenerate it
-	    if (!stuck && state_.particle_.norm() > 
-		generation_radius + kSpatialEpsilon) {
-		state_.particle_ = sample_first_hit(kDims, state_.particle_,
-						    generation_radius,
-						    state_.gen_, 
-						    state_.uniform_);
-	    }
-	}
-	if (i % write_frame_interval_ == 0) {
-	    std::cout << "N_plated = " << i << std::endl;
-	    state_.write_xyz();
-	}
-    }
-    state_.write_xyz();
-    state_.save_state();
-    std::cout << "Done." << std::endl;
-}
-
-/// @brief Blank destructor.
-///
-Simulation::~Simulation() {}

@@ -15,6 +15,33 @@
 #include "state.hpp"
 #include "constants.hpp"
 
+/// @brief Sets up new state with single plated at origin.
+///
+/// @param cell_length: the length of each cell
+/// @param max_leaf_size: optimization parameter for kd tree
+/// @param seed: seed for state random number generator
+///
+void State::set_up_new_state(double cell_length, int max_leaf_size, int seed) {
+    // set up cells
+    cells_.set_up_cells(cell_length);
+
+    // single plated at origin to start
+    plated_cloud_.resize(1);
+    for (int i = 0; i < kDims; i++) {
+	plated_cloud_.at(0)(i) = 0;
+    }
+    // assign smart pointer
+    kd_tree_.reset(new KDTree(kDims, plated_cloud_, max_leaf_size));
+    (*(*kd_tree_).index).addPoints(0, 0);
+    radius_ = 0;
+    
+    cells_.add_to_cells(plated_cloud_.at(0));
+    
+    // set up rng
+    gen_ = std::mt19937(seed);
+    uniform_ = Uniform(0.0, 1.0);
+}
+
 /// @brief Finds overlaps between plated.
 ///
 /// @returns count: the number of pairwise overlaps found
@@ -145,16 +172,20 @@ void State::save_state() const {
 /// Note that running two trajectories starting from the same serialized state
 /// should produce exactly the same results.
 ///
-/// @param load_path: path to file to load
+/// @param cell_length: the length of each cell
 /// @param max_leaf_size: optimization parameter for kd tree
+/// @param load_path: path to file to load
 ///
-void State::load_state(std::string load_path, int max_leaf_size) {
+void State::load_state(double cell_length, int max_leaf_size, 
+		       std::string load_path) {
     std::ifstream stream(load_path);
     boost::archive::binary_iarchive archive(stream);
 
     std::vector<std::vector<double>> serialize_plated;
     archive & serialize_plated;
 
+    // set up cells
+    cells_.set_up_cells(cell_length);
     plated_cloud_.clear();
     radius_ = 0;
     for (auto p : serialize_plated) {

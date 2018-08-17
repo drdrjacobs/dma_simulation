@@ -29,20 +29,21 @@ class Simulation;
 class State {
 public:
     
-    friend class Simulation;
-
-    State() {};
-    ~State() {};
-    
     typedef KDTreeVectorOfVectorsAdaptor<std::vector<Vec>, double, 
 					 kDims> KDTree;
     typedef std::uniform_real_distribution<double> Uniform;
 
+    friend class Simulation;
+
+    State() {};
+    ~State() {};
+    void set_up_new_state(double cell_length, int max_leaf_size, int seed);
     int check_overlaps() const;
     void write_xyz() const;
     double find_nearest_neighbor() const;
     void save_state() const;
-    void load_state(std::string load_path, int max_leaf_size);
+    void load_state(double cell_length, int max_leaf_size, 
+		    std::string load_path); 
 
 private:
     /// Position of diffusing particle

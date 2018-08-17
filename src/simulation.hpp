@@ -44,12 +44,16 @@
 ///
 class Simulation {
 public:
-    Simulation();
-    ~Simulation();
-
     // Documented in the cpp
     static const int kNoCollision;
     static const std::string kParamsFilename;
+
+    /// @brief Constructor starts simulation.
+    ///
+    Simulation() { run_simulation();}
+    /// @brief Blank destructor.
+    ///
+    ~Simulation() {};
    
 private:
     /// Indicates outcome of forward step
@@ -58,22 +62,12 @@ private:
     void run_simulation();
     std::map<std::string, std::string> read_params_file() const;
     std::string initialize_params();
-    void set_up_state(std::string restart_path);
-    Vec generate_point_on_sphere(int kDims, double radius, std::mt19937 & gen,
-				 State::Uniform & distribution);
-    Vec generate_jump();
     double calculate_collisions(Vec jump_unit_vector, double jump_length, 
 				Vec jump);
     Status resolve_jump(double minimum_contact_distance, 
 			Vec jump_unit_vector, double jump_length,
 			Vec &jump);
     bool step_forward();
-    Vec sample_first_hit(int kDims, Vec particle, double radius,
-			 std::mt19937 & gen, State::Uniform & uniform);
-    Vec sample_first_hit_3d(Vec particle, double radius,
-			    std::mt19937 & gen,
-			    State::Uniform & uniform);
-    Vec first_hit_3d_rotation(Vec hit_vector, Vec particle);
 
     // Essential physical variables.
     
@@ -112,3 +106,14 @@ private:
     // advances
     State state_;
 };
+
+Vec generate_point_on_sphere(double radius, 
+			     std::mt19937 &gen, State::Uniform &distribution);
+Vec generate_jump(double dt, double jump_cutoff,
+                  std::mt19937 &gen, State::Uniform &uniform);
+Vec sample_first_hit(Vec particle, double radius, 
+		     std::mt19937 &gen, State::Uniform &uniform);
+Vec sample_first_hit_3d(Vec particle, double radius, 
+			std::mt19937 &gen, State::Uniform &uniform);
+Vec first_hit_3d_rotation(Vec hit_vector, Vec particle);
+
