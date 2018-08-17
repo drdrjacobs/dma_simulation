@@ -2,3 +2,6 @@ bin/
 obj2d/
 obj3d/
 docs/
+test/obj2d_test/
+test/obj3d_test/
+test/bin/

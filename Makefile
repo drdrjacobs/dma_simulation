@@ -1,28 +1,12 @@
 # Makefile
 
-# Directory names
-SRCDIR = src
-OBJDIR2d = obj2d
-OBJDIR3d = obj3d
-BINDIR = bin
+# defines directory names, library paths, and compiler flags, includes, libs 
+# shared with tests
+include variables.mk
 
 # Input Names
 CPP_SRC_PATHS = $(wildcard $(SRCDIR)/*.cpp)
 CPP_FILES = $(CPP_SRC_PATHS:$(SRCDIR)/%=%)
-
-# -----------------------------------------------------------------------------
-
-# C++ Compiler and Flags
-BOOST_PATH = /home/djacobso/boost_1_66_0
-BOOST_INC_PATH = $(BOOST_PATH)
-BOOST_LIB_PATH = $(BOOST_PATH)/stage/lib
-
-EIGEN_INC_PATH = /home/djacobso/eigen-eigen-b3f3d4950030
-
-GPP = g++
-FLAGS = -g -Wall -std=c++17 -pthread -O0 
-INCLUDE = -I$(BOOST_INC_PATH) -I$(EIGEN_INC_PATH)
-LIBS= -L$(BOOST_LIB_PATH) -lboost_serialization
 
 # -----------------------------------------------------------------------------
 # Object files
