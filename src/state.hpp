@@ -35,7 +35,7 @@ public:
     ~State() {};
     
     typedef KDTreeVectorOfVectorsAdaptor<std::vector<Vec>, double, 
-					 DIMENSIONS> KDTree;
+					 kDims> KDTree;
     typedef std::uniform_real_distribution<double> Uniform;
 
     int check_overlaps() const;

@@ -4,8 +4,12 @@
 /// defined at compile time.
 ///
 
+#pragma once
+
 // use eigen for vector operations
 #include <Eigen/Dense>
 
+#include "constants.hpp"
+
 /// Global typdef of vector with correct dimensions 
-typedef Eigen::Matrix<double, DIMENSIONS, 1> Vec;
+typedef Eigen::Matrix<double, kDims, 1> Vec;

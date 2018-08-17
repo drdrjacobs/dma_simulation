@@ -549,16 +549,17 @@ Vec Simulation::first_hit_3d_rotation(Vec hit_vector, Vec particle) {
     double angle = std::acos(z_unit_vector.dot(particle_unit_vector));
     double epsilon = 1e-8;
     if (angle > epsilon) {
-	// compiler macro prevents Eigen static assertions from
-	// triggering for undefined cross product in 2d even though
-	// code would never actually run
-        # if DIMENSIONS == 3
+	// if constexpr new c++17 feature provides compile time if
+	// this prevents Eigen static assertions from triggering for 
+	// undefined operitations in 2d (cross product, rotation about 
+	// arbitrary axis) even though code would never actually run
+	if constexpr(kDims == 3) {
 	    Vec axis =  z_unit_vector.cross(particle_unit_vector);
 	    // cross product is not normalized
 	    axis = axis / axis.norm();
 	    Eigen::AngleAxis<double> rotation(angle, axis);
 	    result = rotation * result;
-        # endif
+        }
     }
     // otherwise, particle is on z axis and we're done
     return result;
@@ -568,7 +569,7 @@ Vec Simulation::first_hit_3d_rotation(Vec hit_vector, Vec particle) {
 ///
 void Simulation::run_simulation() {
     // get simulattion parameters
-    std::cout << "DIMENSION = " << kDims << std::endl;
+    std::cout << "DIMENSIONS = " << kDims << std::endl;
     std::string restart_path = initialize_params();
     set_up_state(restart_path);
     

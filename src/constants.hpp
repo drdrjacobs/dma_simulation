@@ -3,6 +3,8 @@
 /// @brief Header that defines global constants used throughout simulation.
 ///
 
+#pragma once
+
 #include <string>
 
 // define globals

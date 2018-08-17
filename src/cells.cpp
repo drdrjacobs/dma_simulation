@@ -11,9 +11,8 @@
 #include "cells.hpp"
 
 // define globals
-const int Cells::kDims = DIMENSIONS;
 // number of cells that must be looped over when looking for collisions
-const int Cells::kCellsToLoopOver = std::pow(3, DIMENSIONS);
+const int Cells::kCellsToLoopOver = std::pow(3, kDims);
 
 /// @brief Constructor, must also run set_up_cells to properly initialize.
 ///

@@ -14,6 +14,7 @@
 #include <boost/functional/hash.hpp>
 
 #include "vec.hpp"
+#include "constants.hpp"
 
 /// @brief Cells class stores plated in cell structure.
 ///
@@ -22,12 +23,11 @@
 class Cells {
 public:
     
-    typedef std::array<int, DIMENSIONS> CellIndices;
+    typedef std::array<int, kDims> CellIndices;
     typedef std::unordered_map<CellIndices, std::vector<Vec>, 
 			       boost::hash<CellIndices>> CellMap;
 
     // Documented in the cpp
-    static const int kDims;
     static const int kCellsToLoopOver;
     
     Cells();

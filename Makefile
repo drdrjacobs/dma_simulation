@@ -13,14 +13,14 @@ CPP_FILES = $(CPP_SRC_PATHS:$(SRCDIR)/%=%)
 # -----------------------------------------------------------------------------
 
 # C++ Compiler and Flags
-BOOST_PATH = /central/software/boost/1_66_0
-BOOST_INC_PATH = $(BOOST_PATH)/include
-BOOST_LIB_PATH = $(BOOST_PATH)/lib
+BOOST_PATH = /home/djacobso/boost_1_66_0
+BOOST_INC_PATH = $(BOOST_PATH)
+BOOST_LIB_PATH = $(BOOST_PATH)/stage/lib
 
 EIGEN_INC_PATH = /home/djacobso/eigen-eigen-b3f3d4950030
 
 GPP = g++
-FLAGS = -g -Wall -std=c++11 -pthread -O0 
+FLAGS = -g -Wall -std=c++17 -pthread -O0 
 INCLUDE = -I$(BOOST_INC_PATH) -I$(EIGEN_INC_PATH)
 LIBS= -L$(BOOST_LIB_PATH) -lboost_serialization
 

@@ -28,7 +28,7 @@
 
 #pragma once
 
-#include "nanoflann.hpp"
+#include "../lib/nanoflann.hpp"
 
 #include <vector>
 #include <Eigen/Dense>
