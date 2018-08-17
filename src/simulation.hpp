@@ -6,13 +6,9 @@
 #pragma once
 
 #include <string>
-#include <vector>
 #include <map>
 
-// use eigen for vector operations
-#include <Eigen/Dense>
-
-#include "vec.hpp"
+#include "constants.hpp"
 #include "state.hpp"
 
 /// @brief Simulation class which runs all calculations.
@@ -106,14 +102,3 @@ private:
     // advances
     State state_;
 };
-
-Vec generate_point_on_sphere(double radius, 
-			     std::mt19937 &gen, State::Uniform &distribution);
-Vec generate_jump(double dt, double jump_cutoff,
-                  std::mt19937 &gen, State::Uniform &uniform);
-Vec sample_first_hit(Vec particle, double radius, 
-		     std::mt19937 &gen, State::Uniform &uniform);
-Vec sample_first_hit_3d(Vec particle, double radius, 
-			std::mt19937 &gen, State::Uniform &uniform);
-Vec first_hit_3d_rotation(Vec hit_vector, Vec particle);
-

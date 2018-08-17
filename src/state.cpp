@@ -13,7 +13,6 @@
 #include <boost/serialization/vector.hpp>
 
 #include "state.hpp"
-#include "constants.hpp"
 
 /// @brief Sets up new state with single plated at origin.
 ///

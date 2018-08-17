@@ -11,10 +11,7 @@
 #include <memory>
 #include <string>
 
-// use eigen for vector operations
-#include <Eigen/Dense>
-
-#include "vec.hpp"
+#include "constants.hpp"
 #include "KDTreeVectorOfVectorsAdaptor.h"
 #include "cells.hpp"
 
@@ -31,8 +28,6 @@ public:
     
     typedef KDTreeVectorOfVectorsAdaptor<std::vector<Vec>, double, 
 					 kDims> KDTree;
-    typedef std::uniform_real_distribution<double> Uniform;
-
     friend class Simulation;
 
     State() {};

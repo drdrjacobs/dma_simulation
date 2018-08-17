@@ -8,12 +8,8 @@
 #include <vector>
 #include <unordered_map>
 
-// use eigen for vector operations
-#include <Eigen/Dense>
-
 #include <boost/functional/hash.hpp>
 
-#include "vec.hpp"
 #include "constants.hpp"
 
 /// @brief Cells class stores plated in cell structure.
