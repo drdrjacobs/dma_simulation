@@ -13,5 +13,6 @@
 int main(int argc, char **argv) {
     // Simulation object runs everything
     Simulation simulation;
+    simulation.run_simulation();
     return 0;
 }

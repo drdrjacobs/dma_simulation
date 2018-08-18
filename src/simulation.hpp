@@ -11,7 +11,10 @@
 #include "constants.hpp"
 #include "state.hpp"
 
-/// @brief Simulation class which runs all calculations.
+/// @brief Simulation class which runs all calculations by interfacing with the
+/// system @ref State.
+///
+/// Works for two or three dimensions. Set during compile time.
 ///
 /// The simulation uses reduced units in terms of the particle radius, a, for 
 /// length and the diffusion constant, D. This means the time unit is a^2 / D.
@@ -19,51 +22,30 @@
 /// is actually the most convenient way to demonstrate the model's 
 /// universality.
 ///
-/// Uses a two zone approximation. When particles are far from plated, large 
-/// jumps are used and the dynamics are exact. When particles are close to 
-/// plated, a switch is made to approximate dynamics and time becomes 
+/// Uses a two zone approximation. When free particle is far from plated, 
+/// large jumps are used and the dynamics are exact. When particles are close 
+/// to plated, a switch is made to approximate dynamics and time becomes 
 /// important. In this second zone, the particle displacement in each 
-/// dimension is drawn from a gaussian distrubution with a standard deviation
-/// of sqrt(2 dt), D = 1.
+/// dimension is drawn from a truncated normal distrubution with a standard 
+/// deviation of sqrt(2 dt), D = 1.
 ///
-/// All nearest neighbor computations for exact dynamics are run through the 
-/// nanoflann library, see:
-///
-/// https://github.com/jlblancoc/nanoflann
-///
-/// As a result of this, plated (plated particles) are maintained in a kd tree.
-///
-/// For approximate dynamics, plated are stored in a cells structure, see @ref 
-/// Cells.
-///
-/// Works for two or three dimensions. Set during compile time.
+/// For more info on these dynamics see the @ref State class.
 ///
 class Simulation {
 public:
     // Documented in the cpp
-    static const int kNoCollision;
     static const std::string kParamsFilename;
 
-    /// @brief Constructor starts simulation.
-    ///
-    Simulation() { run_simulation();}
+    Simulation();
     /// @brief Blank destructor.
     ///
     ~Simulation() {};
+
+    void run_simulation();
    
 private:
-    /// Indicates outcome of forward step
-    enum Status {free, stuck, rejection};
-    
-    void run_simulation();
     std::map<std::string, std::string> read_params_file() const;
     std::string initialize_params();
-    double calculate_collisions(Vec jump_unit_vector, double jump_length, 
-				Vec jump);
-    Status resolve_jump(double minimum_contact_distance, 
-			Vec jump_unit_vector, double jump_length,
-			Vec &jump);
-    bool step_forward();
 
     // Essential physical variables.
     
@@ -96,9 +78,8 @@ private:
     /// optimization parameter for kd tree
     int max_leaf_size_;
     /// seed for rng
-    int seed_;
-    
-    // State class includes all data structures that change as simulation
-    // advances
+    int seed_;    
+
+    /// State object manages data structures that change as simulation advances
     State state_;
 };
