@@ -50,16 +50,21 @@ public:
     /// @brief empy destructor
     ///
     ~State() {};
-    void set_up_new_state(double cell_length, int max_leaf_size, int seed);
-    void load_state(double cell_length, int max_leaf_size, 
-		    std::string load_path);
-    void save_state() const;
     /// @brief Gets current size of cluster.
     ///
     /// @returns cluster_size: the current size of the cluster
     ///
     int get_cluster_size() const {return plated_cloud_.size();}
+    /// @brief Sets particle position.
+    ///
+    /// @param position: new position
+    ///
+    void set_particle_position(Vec position) {particle_ = position;}
 
+    void set_up_new_state(double cell_length, int max_leaf_size, int seed);
+    void load_state(double cell_length, int max_leaf_size, 
+		    std::string load_path);
+    void save_state() const;
     // for propogation of dynamics
     void add_new_particle();
     bool has_neighbors() const;
@@ -67,24 +72,31 @@ public:
 				 double jump_length, Vec jump,
 				 CellIndices &bounce_cell_indices,
 				 size_t &bounce_plated_index) const;
+    bool resolve_jump(Vec jump, double p);
     bool take_small_step(double dt, double jump_cutoff, double p_);
     double find_nearest_neighbor() const;
     void take_large_step();
     void check_for_regeneration();
-
-
+    // more output
     int check_overlaps() const;
     void write_xyz() const;
 
 private:
     /// Indicates outcome of forward step
     enum Status {free, stuck, rejection};
-    Status resolve_jump(double p, double minimum_collision_distance,
-			CellIndices bounce_cell_indices,
-			size_t bounce_plated_index,
-			Vec initial_particle,
-                        Vec jump_unit_vector, double jump_length,
-                        Vec &jump);
+    void stick_particle();
+    Status attempt_bounce(double minimum_collision_distance,
+			  CellIndices bounce_cell_indices,
+			  size_t bounce_plated_index,
+			  Vec initial_particle,
+			  Vec jump_unit_vector, double jump_length,
+			  Vec &jump);
+    Status resolve_stick_or_bounce(double p, double minimum_collision_distance,
+				   CellIndices bounce_cell_indices,
+				   size_t bounce_plated_index,
+				   Vec initial_particle,
+				   Vec jump_unit_vector, double jump_length,
+				   Vec &jump);
 
     /// Position of diffusing particle
     Vec particle_;

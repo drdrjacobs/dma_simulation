@@ -267,13 +267,80 @@ double State::check_collisions_loop(Vec jump_unit_vector,
     return minimum_collision_distance;
 }
 
-/// @brief Moves particle along given jump, updates jump if bounce occurs 
-/// or sticks particle.
+/// @brief Tranforms particle into plated at its current position.
+///
+void State::stick_particle() {
+    // add particle to cluster
+    plated_cloud_.push_back(particle_);
+    // add new plated in cluster to tree
+    size_t new_index = plated_cloud_.size() - 1; 
+    (*(*kd_tree_).index).addPoints(new_index, new_index);
+    // add newly plated to cells
+    cells_.add_to_cells(particle_);
+    // update cluster radius if necessary
+    double newly_plated_radius = particle_.norm();
+    if (newly_plated_radius > radius_) {
+	radius_ = newly_plated_radius;
+    }
+}
+
+/// @brief Attempts to bounce particle off plated and updates jump if succeeds.
+///
+/// Rejection move is used if bounce fails so particle position does not 
+/// change. Failure occurs if endpoint of bounce does not seperate plated and 
+/// particle.
+///
+/// @param minimum_collision_distance: distance along jump vector at which 
+///    particle makes contact with plated, kNoCollision if no contact is made
+/// @param bounce_cell_indices: indices of cell containing plated that 
+///     particle just bounced off of
+/// @param bounce_plated_index: index of plated that particle just 
+///     bounced off of
+/// @param initial_particle: initial position of particle before step
+/// @param jump_unit_vector: unit vector pointing along jump, accounts for 
+///     precision
+/// @param jump_length: length of jump along unit vector, accounts for precsion
+/// @param jump[out]: vector that discribes particle jump, updated with
+///     new direction and length if bounce occurs
+///
+/// @returns status: free if bounce succeeds, rejection otherwise
+///
+State::Status State::attempt_bounce(double minimum_collision_distance,
+				    CellIndices bounce_cell_indices,
+				    size_t bounce_plated_index,
+				    Vec initial_particle,
+				    Vec jump_unit_vector, double jump_length,
+				    Vec &jump) {
+    Status status = free;
+    const std::vector<Vec>& cell = cells_.get_cell(bounce_cell_indices);
+    Vec plated_r = cell[bounce_plated_index];
+    // unit normal to n-sphere at collision point
+    Vec unit_normal = particle_ - plated_r;
+    unit_normal = unit_normal / unit_normal.norm();
+    jump = (jump_unit_vector * 
+	    (jump_length - minimum_collision_distance));
+    // minus sign since dot product will be negative
+    jump = jump - 2 * jump.dot(unit_normal) * unit_normal;
+    Vec new_particle = particle_ + jump;
+    double new_center_center_distance = (new_particle - plated_r).norm();
+    if (new_center_center_distance <= kDiameter + kSpatialEpsilon) {
+	// new jump will not get particle out of contact with plated
+	// rejection move instead
+	status = rejection;
+	particle_ = initial_particle;    
+	std::cout << "rejection!" << std::endl;
+    }
+    return status;
+}
+
+/// @brief Resolves whether particle sticks or bounces (or rejects) and 
+/// updates jump (or particle) appropriately.
 ///
 /// Has side effects!
 ///
 /// If particle hits plated and does not stick, does a specular reflection
-/// (bounce) instead.
+/// (bounce) instead. In rare cases rejection move will be used so particle
+/// position will not change.
 ///
 /// @param p: the sticking probability
 /// @param minimum_collision_distance: distance along jump vector at which 
@@ -291,12 +358,14 @@ double State::check_collisions_loop(Vec jump_unit_vector,
 ///
 /// @returns stuck: true if particle sticks to plated, false otherwise
 ///
-State::Status State::resolve_jump(double p, double minimum_collision_distance,
-				  CellIndices bounce_cell_indices,
-				  size_t bounce_plated_index,
-				  Vec initial_particle,
-				  Vec jump_unit_vector, double jump_length,
-				  Vec &jump) {
+State::Status State::resolve_stick_or_bounce(double p, 
+					     double minimum_collision_distance,
+					     CellIndices bounce_cell_indices,
+					     size_t bounce_plated_index,
+					     Vec initial_particle,
+					     Vec jump_unit_vector, double 
+					     jump_length,
+					     Vec &jump) {
     Status status = free;
     if (minimum_collision_distance == kNoCollision) {
 	// no contact is made, take full jump
@@ -309,61 +378,31 @@ State::Status State::resolve_jump(double p, double minimum_collision_distance,
 	if (uniform_(gen_) < p) {
 	    // particle stuck
 	    status = stuck;
-	    // add particle to cluster
-	    plated_cloud_.push_back(particle_);
-	    // add new plated in cluster to tree
-	    size_t new_index = plated_cloud_.size() - 1; 
-	    (*(*kd_tree_).index).addPoints(new_index, new_index);
-	    // add newly plated to cells
-	    cells_.add_to_cells(particle_);
-	    // update cluster radius if necessary
-	    double newly_plated_radius = particle_.norm();
-	    if (newly_plated_radius > radius_) {
-		radius_ = newly_plated_radius;
-	    }
+	    stick_particle();
 	}
 	else {
-	    // bounce
-	    const std::vector<Vec>& cell = \
-		cells_.get_cell(bounce_cell_indices);
-	    Vec plated_r = cell[bounce_plated_index];
-	    // unit normal to n-sphere at collision point
-	    Vec unit_normal = particle_ - plated_r;
-	    unit_normal = unit_normal / unit_normal.norm();
-	    jump = (jump_unit_vector * 
-		    (jump_length - minimum_collision_distance));
-	    // minus sign since dot product will be negative
-	    jump = jump - 2 * jump.dot(unit_normal) * unit_normal;
-	    Vec new_particle = particle_ + jump;
-	    double new_center_center_distance = (new_particle - 
-						 plated_r).norm();
-	    if (new_center_center_distance <= kDiameter + kSpatialEpsilon) {
-		// new jump will not get particle out of contact with plated
-		// rejection move instead
-		status = rejection;
-		particle_ = initial_particle;    
-		std::cout << "rejection!" << std::endl;
-	    }
+	    // bounce, assigns new jump if successful or turns into rejection
+	    // move
+	    status = attempt_bounce(minimum_collision_distance, 
+				    bounce_cell_indices, bounce_plated_index,
+				    initial_particle,
+				    jump_unit_vector, jump_length, jump);
 	}
     }
     return status;
 }
 
-/// @brief Take a small step forward in time using approximate dynamics to
+/// @brief Move particle according to jump using approximate dynamics to 
 /// resolve collisions.
 ///
-/// @param dt: the time step, determines the jump distribution standard
-///     deviation
-/// @param jump_cutoff: max distance a particle can jump in one timestep in
-///     one dimension, in terms of the standard deviations of the non-cutoff
-///     parent normal distribution
+/// Has side effects!
+///
+/// @param jump: the jump the particle is taking
 /// @param p: the sticking probability
 ///
 /// @returns stuck_boolean: true if particle sticks to cluster
 ///
-bool State::take_small_step(double dt, double jump_cutoff, double p) {
-    Vec jump = Sampling::generate_jump(dt, jump_cutoff, gen_, uniform_);
-
+bool State::resolve_jump(Vec jump, double p) {
     // set to dummy value so that gets into while loop to start
     double minimum_collision_distance = -1;
     Status status = free;
@@ -390,17 +429,36 @@ bool State::take_small_step(double dt, double jump_cutoff, double p) {
 				  bounce_cell_indices,
 				  bounce_plated_index);
 	// updates state so all side effects are in here
-	status = resolve_jump(p, minimum_collision_distance, 
-			      bounce_cell_indices, bounce_plated_index,
-			      initial_particle,
-			      jump_unit_vector, jump_length,
-			      jump);
+	status = resolve_stick_or_bounce(p, minimum_collision_distance, 
+					 bounce_cell_indices, 
+					 bounce_plated_index,
+					 initial_particle,
+					 jump_unit_vector, jump_length,
+					 jump);
     }
     bool stuck_boolean = false;
     if (status == stuck) {
 	stuck_boolean = true;
     }
     return stuck_boolean; 
+}
+
+/// @brief Take a small step forward in time using approximate dynamics to
+/// resolve collisions.
+///
+/// @param dt: the time step, determines the jump distribution standard
+///     deviation
+/// @param jump_cutoff: max distance a particle can jump in one timestep in
+///     one dimension, in terms of the standard deviations of the non-cutoff
+///     parent normal distribution
+/// @param p: the sticking probability
+///
+/// @returns stuck: true if particle sticks to cluster
+///
+bool State::take_small_step(double dt, double jump_cutoff, double p) {
+    Vec jump = Sampling::generate_jump(dt, jump_cutoff, gen_, uniform_);
+    bool stuck = resolve_jump(jump, p);
+    return stuck;
 }
 
 
