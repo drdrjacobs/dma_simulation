@@ -36,6 +36,7 @@ public:
 					int offset) const;
     const std::vector<Vec>& get_cell(CellIndices cell_indices) const;
     bool has_neighbors(Vec v) const;
+    CellIndices get_cell_indices(Vec v) const;
 
 private:
     /// Plated are stored in an unordered_map based cells_map_ structure.
@@ -46,6 +47,4 @@ private:
     double cell_length_;
     /// Empty cell is returned if indices not in cell map
     std::vector<Vec> empty_cell_;
-
-    CellIndices get_cell_indices(Vec v) const;
 };

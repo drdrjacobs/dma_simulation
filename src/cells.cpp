@@ -35,7 +35,7 @@ void Cells::set_up_cells(double cell_length) {
     cell_length_ = cell_length;
 }
 
-/// @brief Gets the cell indicies for a given position vector.
+/// @brief Gets the cell indicies for a given position vector, uses floor.
 ///
 /// @param v: the position to get the cell indices for
 ///

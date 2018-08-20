@@ -29,7 +29,7 @@ MAIN_OBJ = main.cpp.o
 # -----------------------------------------------------------------------------
 
 LINK = $(GPP) $(FLAGS) -o $(BINDIR)/$@ $(INCLUDE) $(SIMULATION_OBJ) $^ $(LIBS)
-COMPILE = $(GPP) $(FLAGS) -c -o $@ $(INCLUDE) $<
+COMPILE = $(GPP) $(FLAGS) -DDIMENSIONS=$(DIMENSIONS) -c -o $@ $(INCLUDE) $<
 
 # Top level rules
 
@@ -40,11 +40,13 @@ simulation_executables:
 	$(MAKE) -C ../
 
 # Include simulation code in linking of tests
+tests_2d: DIMENSIONS = 2
 tests_2d: SIMULATION_OBJ = $(filter-out ../$(OBJDIR2d)/$(MAIN_OBJ), \
 	$(wildcard ../$(OBJDIR2d)/*.cpp.o))
 tests_2d: $(CPP_OBJ2d)
 	$(LINK)
 
+tests_3d: DIMENSIONS = 3
 tests_3d:  SIMULATION_OBJ = $(filter-out ../$(OBJDIR3d)/$(MAIN_OBJ), \
 	$(wildcard ../$(OBJDIR3d)/*.cpp.o))	
 tests_3d: $(CPP_OBJ3d)
