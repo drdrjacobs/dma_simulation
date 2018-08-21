@@ -14,7 +14,7 @@
 /// probability distributions.
 namespace Sampling {
     Vec generate_point_on_sphere(double radius,
-				 std::mt19937 &gen, Uniform &distribution);
+				 std::mt19937 &gen, Uniform &uniform);
     Vec generate_jump(double dt, double jump_cutoff,
 		      std::mt19937 &gen, Uniform &uniform);
     Vec sample_first_hit(Vec particle, double radius,

@@ -3,7 +3,10 @@
 /// @brief Implementation of the main method for the simualtion.
 ///
 
-# include "simulation.hpp"
+#include <iostream>
+#include <iomanip>
+
+#include "simulation.hpp"
 
 /// @brief Main for running simulation.
 ///
@@ -11,6 +14,7 @@
 /// @param argv: command line arguments
 ///
 int main(int argc, char **argv) {
+    std::cout << std::scientific << std::setprecision(12) << std::endl;
     // Simulation object runs everything
     Simulation simulation;
     simulation.run_simulation();

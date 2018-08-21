@@ -55,11 +55,21 @@ public:
     /// @returns cluster_size: the current size of the cluster
     ///
     int get_cluster_size() const {return plated_cloud_.size();}
+    /// @brief Gets particle position.
+    ///
+    /// @returns particle: the particle position
+    ///
+    Vec get_particle() {return particle_;}
     /// @brief Sets particle position.
     ///
-    /// @param position: new position
+    /// @param new_particle: new position
     ///
-    void set_particle_position(Vec position) {particle_ = position;}
+    void set_particle(Vec new_particle) {particle_ = new_particle;}
+    /// @brief Gets plated_cloud.
+    ///
+    /// @param returns plated cloud: vector tracking all plated
+    ///
+    std::vector<Vec>& get_plated_cloud() {return plated_cloud_;}
 
     void set_up_new_state(double cell_length, int max_leaf_size, int seed);
     void load_state(double cell_length, int max_leaf_size, 
@@ -68,6 +78,7 @@ public:
     // for propogation of dynamics
     void add_new_particle();
     bool has_neighbors() const;
+    void stick_particle();
     double check_collisions_loop(Vec jump_unit_vector,
 				 double jump_length, Vec jump,
 				 CellIndices &bounce_cell_indices,
@@ -84,7 +95,6 @@ public:
 private:
     /// Indicates outcome of forward step
     enum Status {free, stuck, rejection};
-    void stick_particle();
     Status attempt_bounce(double minimum_collision_distance,
 			  CellIndices bounce_cell_indices,
 			  size_t bounce_plated_index,

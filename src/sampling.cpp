@@ -16,7 +16,7 @@
 ///
 /// @param radius: the radius of the n-sphere
 /// @param[out] gen: random number generator
-/// @param[out] distribution: random number uniform distribution over [0, 1)
+/// @param[out] uniform: random number uniform distribution over [0, 1)
 ///
 /// @returns result: vector representing random point
 ///
@@ -58,7 +58,7 @@ Vec Sampling::generate_point_on_sphere(double radius,
 ///     one dimension, in terms of the standard deviations of the non-cutoff 
 ///     parent normal distribution
 /// @param[out] gen: random number generator
-/// @param[out] distribution: random number uniform distribution over [0, 1)
+/// @param[out] uniform: random number uniform distribution over [0, 1)
 ///
 /// @returns jump: jump drawn from truncated normal distribution 
 ///
@@ -100,7 +100,7 @@ Vec Sampling::generate_jump(double dt, double jump_cutoff,
 /// @param particle: the position vector of the particle
 /// @param radius: the radius of the n-sphere that particle will hit
 /// @param[out] gen: random number generator
-/// @param[out] distribution: random number uniform distribution over [0, 1)
+/// @param[out] uniform: random number uniform distribution over [0, 1)
 ///
 /// @returns result: vector on n-sphere which is a sample 
 ///
@@ -137,7 +137,7 @@ Vec Sampling::sample_first_hit(Vec particle, double radius,
 /// @param particle: the position vector of the particle
 /// @param radius: the radius of the 2-sphere that particle will hit
 /// @param[out] gen: random number generator
-/// @param[out] distribution: random number uniform distribution over [0, 1)
+/// @param[out] uniform: random number uniform distribution over [0, 1)
 ///
 /// @returns result: vector on 2-sphere which is sample from first-hit 
 ///     distribution, given that particle hits the sphere

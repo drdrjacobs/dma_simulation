@@ -7,6 +7,7 @@
 #include <iostream>
 #include <cmath>
 #include <fstream>
+#include <limits>
 
 #include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/binary_iarchive.hpp>
@@ -18,7 +19,7 @@
 // define globals
 /// Used in collision detection loop to indicate particle has not hit any
 /// plated
-const int State::kNoCollision = 99999;
+const int State::kNoCollision = std::numeric_limits<int>::max();
 
 /// @brief Sets up new state with single plated at origin.
 ///
@@ -127,7 +128,7 @@ void State::save_state() const {
 ///
 void State::add_new_particle() {
     // radius at which new particle should be generated at need 2 times 
-    // epsilon, due to epsilon skin around particles           
+    // epsilon, due to epsilon skin around plated           
     double generation_radius = (radius_ + kDiameter + 2 * kSpatialEpsilon);
     // position vector of diffusing particle
     particle_ = Sampling::generate_point_on_sphere(generation_radius,
@@ -164,6 +165,10 @@ double get_collision_distance(Vec particle, Vec plated_r,
     // check to make sure did not start too close to plated
     if ((particle - plated_r).norm() <= kDiameter - kSpatialEpsilon) {
 	std::cout << "Particle started too close to plated!" << std::endl;
+	std::cout << "particle:" << std::endl << particle << std::endl;
+	std::cout << "plated:" << std::endl << plated_r << std::endl;
+	std::cout << "distance = " << (particle - plated_r).norm() << 
+	    std::endl; 
 	std::exit(-1);
     }
     // Going to calculate point at which line defined by jump_vector makes 
@@ -413,7 +418,7 @@ bool State::resolve_jump(Vec jump, double p) {
     CellIndices bounce_cell_indices = CellIndices();
     /// index of plated that particle just bounced off of
     // nonsensical index since has not bounced yet
-    size_t bounce_plated_index = -1;
+    size_t bounce_plated_index = std::numeric_limits<size_t>::max();
 
     // if particle is free, but contact was made (2nd condition) there was a 
     // bounce/reflection
@@ -496,6 +501,7 @@ void State::take_large_step() {
 /// from first-hit distribution if it is.
 ///
 void State::check_for_regeneration() {
+    // need 2 times epsilon, due to epsilon skin around plated
     double generation_radius = (radius_ + kDiameter + 2 * kSpatialEpsilon);
     if (particle_.norm() > generation_radius + kSpatialEpsilon) {
 	particle_ = Sampling::sample_first_hit(particle_, generation_radius,
@@ -535,13 +541,23 @@ int State::check_overlaps() const {
 		    Vec r_j = other_cell.at(j);
 		    double distance = (r_i - r_j).norm();
 		    if (distance <= threshold) {
+			std::cout << "r_i:" << std::endl << r_i << std::endl;
+			std::cout << "r_j:" << std::endl << r_j << std::endl;
 			count += 1;
-			std::cout << distance << std::endl;
+			std::cout << "overlap distance = " << distance << 
+			    std::endl;
+			if (central_cell_indices == other_cell_indices) {
+			    // double count if same cell to match double
+			    // counting from other cells
+			    count += 1;
+			}
 		    }
 		}
 	    }
 	}
     }
+    // overlaps were double counted
+    count = count / 2;
     return count;
 }
 

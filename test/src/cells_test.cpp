@@ -49,7 +49,7 @@ TEST_CASE("test has_neighbors") {
     for (double offset : offsets) {
 	std::string tag = ", offset = " + std::to_string(offset);
 	for (int i = 0; i < kDims; i++) {
-	    particle(i) = cell_length * (0.5 + offset);
+	    particle(i) = cell_length * (0.5 + (i + 1) * offset);
 	}
 	Vec plated;
 	for (int i = 0; i < kDims; i++) {
@@ -59,24 +59,24 @@ TEST_CASE("test has_neighbors") {
 	const int Y = 1;
 
 	SECTION( "test no neighbors with empty cells" + tag) {
-	    REQUIRE(cells.has_neighbors(particle) == false);
+	    REQUIRE(!cells.has_neighbors(particle));
 	}
 	SECTION( "test no neighbors if nearest neighbor two cells out" + tag) {
 	    plated(X) = particle(X) + 2 * cell_length;
 	    cells.add_to_cells(plated);
-	    REQUIRE(cells.has_neighbors(particle) == false);
+	    REQUIRE(!cells.has_neighbors(particle));
 	}
 	SECTION( "test has neighbors if nearest neighbor one cell out" + tag) {
 	    plated(Y) = particle(Y) + cell_length ;
 	    cells.add_to_cells(plated);
-	    REQUIRE(cells.has_neighbors(particle) == true);
+	    REQUIRE(cells.has_neighbors(particle));
 	}
 	SECTION( "test has neighbors if nearest neighbor in same cell" + tag) {
 	    for (int i = 0; i < kDims; i++) {
 		plated(i) = particle(i) + cell_length / 4.0;
 	    }
 	    cells.add_to_cells(plated);
-	    REQUIRE(cells.has_neighbors(particle) == true);
+	    REQUIRE(cells.has_neighbors(particle));
 	}
     }
 }
