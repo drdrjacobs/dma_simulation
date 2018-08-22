@@ -5,3 +5,4 @@ docs/
 test/obj2d_test/
 test/obj3d_test/
 test/bin/
+test/test_distributions/*.txt

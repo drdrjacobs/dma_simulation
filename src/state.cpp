@@ -332,8 +332,7 @@ State::Status State::attempt_bounce(double minimum_collision_distance,
 	// new jump will not get particle out of contact with plated
 	// rejection move instead
 	status = rejection;
-	particle_ = initial_particle;    
-	std::cout << "rejection!" << std::endl;
+	particle_ = initial_particle;
     }
     return status;
 }
@@ -511,9 +510,12 @@ void State::check_for_regeneration() {
 
 /// @brief Finds overlaps between plated.
 ///
+/// @param verbose: if true prints out information about overlaps that are 
+///     found
+///
 /// @returns count: the number of pairwise overlaps found
 ///
-int State::check_overlaps() const {
+int State::check_overlaps(bool verbose) const {
     int count = 0;
     // pairwise distance of less than this threshold is an overlap
     double threshold = kDiameter - kSpatialEpsilon;
@@ -541,11 +543,15 @@ int State::check_overlaps() const {
 		    Vec r_j = other_cell.at(j);
 		    double distance = (r_i - r_j).norm();
 		    if (distance <= threshold) {
-			std::cout << "r_i:" << std::endl << r_i << std::endl;
-			std::cout << "r_j:" << std::endl << r_j << std::endl;
 			count += 1;
-			std::cout << "overlap distance = " << distance << 
-			    std::endl;
+			if (verbose) {
+			    std::cout << "r_i:" << std::endl << r_i << 
+				std::endl;
+			    std::cout << "r_j:" << std::endl << r_j << 
+				std::endl;
+			    std::cout << "overlap distance = " << distance << 
+				std::endl;
+			}
 			if (central_cell_indices == other_cell_indices) {
 			    // double count if same cell to match double
 			    // counting from other cells
@@ -564,7 +570,8 @@ int State::check_overlaps() const {
 /// @brief Writes current plated configuartion to a .xyz file.
 ///
 void State::write_xyz() const {
-    int count = check_overlaps();
+    bool verbose = true;
+    int count = check_overlaps(verbose);
     if (count > 0) {
 	std::cout << "Found overlaps between plated!" << std::endl;
 	std::exit(-1);

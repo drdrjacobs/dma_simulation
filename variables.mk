@@ -17,4 +17,5 @@ EIGEN_INC_PATH = /home/djacobso/eigen-eigen-b3f3d4950030
 GPP = g++
 FLAGS = -g -Wall -std=c++17 -pthread -O0
 INCLUDE = -I$(BOOST_INC_PATH) -I$(EIGEN_INC_PATH)
-LIBS= -L$(BOOST_LIB_PATH) -lboost_serialization
+LIBS= -L$(BOOST_LIB_PATH) -lboost_serialization -lboost_filesystem \
+	-lboost_system

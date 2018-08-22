@@ -89,7 +89,7 @@ public:
     void take_large_step();
     void check_for_regeneration();
     // more output
-    int check_overlaps() const;
+    int check_overlaps(bool verbose = false) const;
     void write_xyz() const;
 
 private:
