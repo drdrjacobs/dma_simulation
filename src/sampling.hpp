@@ -17,6 +17,7 @@ namespace Sampling {
 				 std::mt19937 &gen, Uniform &uniform);
     Vec generate_jump(double dt, double jump_cutoff,
 		      std::mt19937 &gen, Uniform &uniform);
+    double calculate_variance_ratio(double jump_cutoff);
     Vec sample_first_hit(Vec particle, double radius,
 			 std::mt19937 &gen, Uniform &uniform);
     Vec sample_first_hit_3d(Vec particle, double radius,

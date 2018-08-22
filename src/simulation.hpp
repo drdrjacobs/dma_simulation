@@ -77,6 +77,8 @@ private:
     double cell_length_;
     /// optimization parameter for kd tree
     int max_leaf_size_;
+    /// if true, rejection moves are used instead of bounces
+    bool rejection_only_;
     /// seed for rng
     int seed_;    
 

@@ -100,6 +100,8 @@ TEST_CASE("test generate_jump", "[sampling]") {
 			    std::to_string(jump_cutoff) + "_" +
 			    std::to_string(kDims) + "d.txt");
 	file.open(path);
+	file << "variance = " << 
+	    Sampling::calculate_variance_ratio(jump_cutoff) << std::endl;
 	for (int i = 0; i < samples; i++) {
 	    Vec sample = Sampling::generate_jump(dt, jump_cutoff, 
 						 gen, uniform);

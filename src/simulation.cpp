@@ -11,6 +11,7 @@
 #include <sstream>
 
 #include "simulation.hpp"
+#include "sampling.hpp"
 
 // define globals
 const std::string Simulation::kParamsFilename = "params.txt";
@@ -22,10 +23,12 @@ Simulation::Simulation() {
     std::cout << "DIMENSIONS = " << kDims << std::endl;
     std::string restart_path = initialize_params();
     if (restart_path.empty()) {
-	state_.set_up_new_state(cell_length_, max_leaf_size_, seed_);
+	state_.set_up_new_state(cell_length_, max_leaf_size_, seed_, 
+				rejection_only_);
     }
     else {
-	state_.load_state(cell_length_, max_leaf_size_, restart_path);
+	state_.load_state(cell_length_, max_leaf_size_, restart_path, 
+			  rejection_only_);
     }
 }
 
@@ -121,6 +124,7 @@ std::string Simulation::initialize_params() {
     write_frame_interval_ = std::stoi(params_map["write_frame_interval"]);
     cluster_size_ = static_cast <int> (std::stod(params_map["cluster_size"]));
     max_leaf_size_ = std::stoi(params_map["max_leaf_size"]);
+    rejection_only_ = std::stoi(params_map["rejection_only"]);
     seed_ = std::stoi(params_map["seed"]);
 
     // set expected length of particle movement in 2d or 3d
@@ -133,6 +137,8 @@ std::string Simulation::initialize_params() {
 
     // set jump_cutoff_ for cell based spatial parallelism
     jump_cutoff_ = std::stod(params_map["jump_cutoff"]);
+    std::cout << "variance ratio (truncated to non-truncated normal) = " <<
+	Sampling::calculate_variance_ratio(jump_cutoff_) << std::endl;
     // cell length must be larger than maximum jump size + diameter + epsilon 
     // so that all collisions can be resolved
     double max_jump_length = std::sqrt(2 * kDims * dt_) * jump_cutoff_;

@@ -26,8 +26,11 @@ const int State::kNoCollision = std::numeric_limits<int>::max();
 /// @param cell_length: the length of each cell
 /// @param max_leaf_size: optimization parameter for kd tree
 /// @param seed: seed for state random number generator
+/// @param rejection_only: default false, if true rejection used instead of
+///    bouncing
 ///
-void State::set_up_new_state(double cell_length, int max_leaf_size, int seed) {
+void State::set_up_new_state(double cell_length, int max_leaf_size, int seed,
+			     bool rejection_only) {
     // set up cells
     cells_.set_up_cells(cell_length);
 
@@ -46,6 +49,8 @@ void State::set_up_new_state(double cell_length, int max_leaf_size, int seed) {
     // set up rng
     gen_ = std::mt19937(seed);
     uniform_ = Uniform(0.0, 1.0);
+
+    rejection_only_ = rejection_only;
 }
 
 /// @brief Loads exact serialized state of a simulation. 
@@ -61,9 +66,11 @@ void State::set_up_new_state(double cell_length, int max_leaf_size, int seed) {
 /// @param cell_length: the length of each cell
 /// @param max_leaf_size: optimization parameter for kd tree
 /// @param load_path: path to file to load
+/// @param rejection_only: default false, if true rejection used instead of
+///    bouncing
 ///
 void State::load_state(double cell_length, int max_leaf_size, 
-		       std::string load_path) {
+		       std::string load_path, bool rejection_only) {
     std::ifstream stream(load_path);
     boost::archive::binary_iarchive archive(stream);
 
@@ -92,6 +99,8 @@ void State::load_state(double cell_length, int max_leaf_size,
     // set up kd_tree
     kd_tree_.reset(new State::KDTree(kDims, plated_cloud_, max_leaf_size));
     (*(*kd_tree_).index).addPoints(0, plated_cloud_.size() - 1);
+
+    rejection_only_ = rejection_only;
 }
 
 /// @brief Serialization writes out exact state of simulation.
@@ -317,22 +326,29 @@ State::Status State::attempt_bounce(double minimum_collision_distance,
 				    Vec jump_unit_vector, double jump_length,
 				    Vec &jump) {
     Status status = free;
-    const std::vector<Vec>& cell = cells_.get_cell(bounce_cell_indices);
-    Vec plated_r = cell[bounce_plated_index];
-    // unit normal to n-sphere at collision point
-    Vec unit_normal = particle_ - plated_r;
-    unit_normal = unit_normal / unit_normal.norm();
-    jump = (jump_unit_vector * 
-	    (jump_length - minimum_collision_distance));
-    // minus sign since dot product will be negative
-    jump = jump - 2 * jump.dot(unit_normal) * unit_normal;
-    Vec new_particle = particle_ + jump;
-    double new_center_center_distance = (new_particle - plated_r).norm();
-    if (new_center_center_distance <= kDiameter + kSpatialEpsilon) {
-	// new jump will not get particle out of contact with plated
-	// rejection move instead
+    if (rejection_only_) {
 	status = rejection;
 	particle_ = initial_particle;
+    }
+    else {
+	const std::vector<Vec>& cell = cells_.get_cell(bounce_cell_indices);
+	Vec plated_r = cell[bounce_plated_index];
+	// unit normal to n-sphere at collision point
+	Vec unit_normal = particle_ - plated_r;
+	unit_normal = unit_normal / unit_normal.norm();
+	jump = (jump_unit_vector * 
+		(jump_length - minimum_collision_distance));
+	// minus sign since dot product will be negative
+	jump = jump - 2 * jump.dot(unit_normal) * unit_normal;
+	Vec new_particle = particle_ + jump;
+	double new_center_center_distance = (new_particle - plated_r).norm();
+	if (new_center_center_distance <= kDiameter + kSpatialEpsilon) {
+	    // new jump will not get particle out of contact with plated
+	    // rejection move instead
+	    status = rejection;
+	    particle_ = initial_particle;
+	    std::cout << "Rejection!" << std::endl;
+	}
     }
     return status;
 }

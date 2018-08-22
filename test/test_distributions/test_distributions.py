@@ -53,14 +53,20 @@ plt.show()
 files = glob.glob("generate_jump_*.txt")
 files = sorted(files)
 for file in files:
-    data = np.loadtxt(file)
+    with open(file) as f:
+        variance = float(f.readline().split("=")[-1])
+    data = np.loadtxt(file, skiprows = 1)
     coordinates = ["X", "Y", "Z"]
     kDims = data.shape[1]
+    var_sum = 0
     for i in range(kDims):
+        var_sum += np.var(data[:, i])
         label = "$" + coordinates[i] + ", N = " + str(data.shape[0]) + "$"
         plt.hist(data[:, i], density = True, bins = 50, label = label, 
                  histtype = "step")
         jump_cutoff = float(file.split("_")[-2])
+    print("jump_cutoff = {}".format(jump_cutoff))
+    print("delta variance = {}".format(var_sum / kDims - variance))
     xs = np.linspace(-jump_cutoff, jump_cutoff, 100)
     dist = scipy.stats.norm()
     ys = dist.pdf(xs) / (dist.cdf(jump_cutoff) - dist.cdf(-jump_cutoff))

@@ -26,6 +26,8 @@ float fraction_max_kappa = 1
 
 # optimization parameter for kd trees
 int max_leaf_size = 10
+# use 0 or 1 for bools, if true, rejection moves are used instead of bounces
+bool rejection_only = 0
 
 # seeds rng
 int seed = 0

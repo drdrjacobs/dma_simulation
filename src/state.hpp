@@ -71,9 +71,10 @@ public:
     ///
     std::vector<Vec>& get_plated_cloud() {return plated_cloud_;}
 
-    void set_up_new_state(double cell_length, int max_leaf_size, int seed);
+    void set_up_new_state(double cell_length, int max_leaf_size, int seed,
+			  bool rejection_only = false);
     void load_state(double cell_length, int max_leaf_size, 
-		    std::string load_path);
+		    std::string load_path, bool rejection_only = false);
     void save_state() const;
     // for propogation of dynamics
     void add_new_particle();
@@ -123,6 +124,8 @@ private:
     std::mt19937 gen_;
     /// uniform [0, 1) distribution for random number generator
     Uniform uniform_;
+    /// if true, rejection moves are used instead of bounces
+    bool rejection_only_;
 };
 
 // Free functions

@@ -87,6 +87,36 @@ Vec Sampling::generate_jump(double dt, double jump_cutoff,
     return jump;
 }
 
+/// @brief Calculates ratio of truncated to non-truncated normal distribution
+/// variances.
+///
+/// @param jump_cutoff: max distance a particle can jump in one timestep in 
+///     one dimension, in terms of the standard deviations of the non-cutoff 
+///     parent normal distribution
+///
+/// @returns ratio: ratio of truncated to non-truncated normal distribution 
+///     variances
+///
+double Sampling::calculate_variance_ratio(double jump_cutoff) {
+    // truncate after jump_cutoff standard deviations of the non-truncated 
+    // parent normal distribution.
+    //
+    // See: https://en.wikipedia.org/wiki/Truncated_normal_distribution
+    double beta = jump_cutoff;
+    double alpha = -jump_cutoff;
+    boost::math::normal_distribution<double> normal;
+    // note capital letter cdf
+    double Phi_beta = boost::math::cdf(normal, jump_cutoff);
+    // use property that Phi(-x) = 1 - Phi(x) 
+    double Z = 2.0 * Phi_beta - 1.0;
+    // lower case letter pdf
+    double phi_beta = boost::math::pdf(normal, beta);
+    double phi_alpha = boost::math::pdf(normal, alpha);
+    double ratio = 1 + (alpha * phi_alpha - beta * phi_beta) / Z;
+    ratio += -std::pow((phi_alpha - phi_beta) / Z, 2);
+    return ratio;
+}
+
 /// @brief Analytically samples position where particle on the outside of a
 /// n-sphere hits the n-sphere.
 ///
@@ -208,4 +238,3 @@ Vec Sampling::first_hit_3d_rotation(Vec hit_vector, Vec particle) {
     // otherwise, particle is on z axis and we're done
     return result;
 }
-
