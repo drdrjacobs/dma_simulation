@@ -549,7 +549,7 @@ TEST_CASE("test check_overlaps") {
     state.set_up_new_state(cell_length, max_leaf_size, seed);
     
     Vec particle;
-    double epsilon = 1e-8;
+    double epsilon = 5e-9;
     SECTION("test with no overlaps") {
 	for (int i = 0; i < kDims; i++) {
 	    particle(i) = -2 * std::sqrt(kDims) / kDims;

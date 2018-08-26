@@ -16,7 +16,7 @@
 const int kDims = DIMENSIONS;
 const int kDiameter = 2;
 /// small epsilon used in distance calculations
-const double kSpatialEpsilon = 1e-7;
+const double kSpatialEpsilon = 1e-8;
 
 // typedefs
 /// Global typdef of vector with correct dimensions

@@ -60,7 +60,6 @@ void Simulation::run_simulation() {
 	}
 	if (i % write_frame_interval_ == 0) {
 	    std::cout << "N_plated = " << i << std::endl;
-	    state_.write_xyz();
 	}
     }
     state_.write_xyz();
@@ -121,7 +120,8 @@ std::string Simulation::initialize_params() {
 	restart_path = "";
     }
 
-    write_frame_interval_ = std::stoi(params_map["write_frame_interval"]);
+    write_frame_interval_ = \
+	static_cast <int> (std::stod(params_map["write_frame_interval"]));
     cluster_size_ = static_cast <int> (std::stod(params_map["cluster_size"]));
     max_leaf_size_ = std::stoi(params_map["max_leaf_size"]);
     rejection_only_ = std::stoi(params_map["rejection_only"]);
@@ -146,16 +146,29 @@ std::string Simulation::initialize_params() {
     cell_length_ = max_jump_length + kDiameter + kSpatialEpsilon;
     std::cout << "cell_length_ = " << cell_length_ << std::endl;
 
-    double fraction_max_kappa = std::stod(params_map["fraction_max_kappa"]);
-    // this line is confusing,
-    // 
-    // p_max = kappa_max * sqrt(dt) = 1.0 
-    // kappa_max = p_max / sqrt(dt) = 1.0 / sqrt(dt)
-    // p_ = kappa * sqrt(dt) = fraction_max_kappa * max_kappa * sqrt(dt)
-    // p_ = fraction_kappa_max * 1.0 / sqrt(dt) * sqrt(dt)
-    //
-    // so finally
-    p_ = fraction_max_kappa;
+    if (params_map.find("kappa") != params_map.end()) {
+	double kappa = std::stod(params_map["kappa"]);
+	p_ = kappa * std::sqrt(dt_);
+	if (p_ > 1.0) {
+	    std::string error = "sticking probability, ";
+	    error += "p = kappa * sqrt(dt) = " + std::to_string(p_);
+	    error += " > 1.0, use lower kappa or dt (rms_jump_size).";
+	    throw std::invalid_argument(error);	       
+	}
+    }
+    else {
+	double fraction_max_kappa = \
+	    std::stod(params_map["fraction_max_kappa"]);
+	// this line is confusing,
+	// 
+	// p_max = kappa_max * sqrt(dt) = 1.0 
+	// kappa_max = p_max / sqrt(dt) = 1.0 / sqrt(dt)
+	// p_ = kappa * sqrt(dt) = fraction_max_kappa * max_kappa * sqrt(dt)
+	// p_ = fraction_kappa_max * 1.0 / sqrt(dt) * sqrt(dt)
+	//
+	// so finally
+	p_ = fraction_max_kappa;
+    }
     std::cout << "p_ = fraction_max_kappa = " << p_ << std::endl;
     
     // kappa = p_ / sqrt(dt) 
