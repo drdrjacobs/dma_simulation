@@ -536,7 +536,8 @@ TEST_CASE("test check_for_regeneration") {
     }
     state.set_particle(particle);
     
-    state.check_for_regeneration();
+    double dt = 1;
+    state.check_for_regeneration(dt);
     REQUIRE((particle - state.get_particle()).norm() > epsilon);
     REQUIRE(state.get_particle().norm() - answer == approx_zero);
 }

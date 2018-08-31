@@ -55,7 +55,7 @@ void Simulation::run_simulation() {
 	    // regenerate particle from first-hit distribution if it gets too 
 	    // far away from cluster
 	    if (!stuck) {
-		state_.check_for_regeneration();
+		state_.check_for_regeneration(dt_);
 	    }
 	}
 	if (i % write_frame_interval_ == 0) {

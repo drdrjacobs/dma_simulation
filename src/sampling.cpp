@@ -193,6 +193,14 @@ Vec Sampling::sample_first_hit_3d(Vec particle, double radius,
 	double eta = (std::pow(alpha, 2) + 1) / (2 * alpha);
 	eta -= (std::pow((std::pow(alpha, 2) - 1), 2) / 
 		(2 * alpha * std::pow(alpha - 1 + 2 * Q, 2)));
+	// sometimes when alpha is small, eta ends up outside of [-1, 1]
+	// fix this
+	if (eta > 1) {
+	    eta = 1;
+	}
+	else if (eta < -1) {
+	    eta = -1;
+	}
 	double theta = std::acos(eta);
 	double phi = uniform(gen) * 2 * M_PI;
 	// vector based on z axis

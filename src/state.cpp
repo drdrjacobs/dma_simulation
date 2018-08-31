@@ -515,10 +515,15 @@ void State::take_large_step() {
 /// @brief Checks to see if particle is too far from cluster and regenerates it
 /// from first-hit distribution if it is.
 ///
-void State::check_for_regeneration() {
+/// @param dt: the timestep
+///
+void State::check_for_regeneration(double dt) {
     // need 2 times epsilon, due to epsilon skin around plated
     double generation_radius = (radius_ + kDiameter + 2 * kSpatialEpsilon);
-    if (particle_.norm() > generation_radius + kSpatialEpsilon) {
+    // only want to regenerate if that will move the particle significantly
+    // roughly this is when particle is more than a distance on the order of
+    // one jump length ~ sqrt(dt) away from generation radius
+    if (particle_.norm() > generation_radius + std::sqrt(dt)) {
 	particle_ = Sampling::sample_first_hit(particle_, generation_radius,
 					       gen_, uniform_);
     }

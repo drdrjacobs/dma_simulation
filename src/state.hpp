@@ -88,7 +88,7 @@ public:
     bool take_small_step(double dt, double jump_cutoff, double p_);
     double find_nearest_neighbor() const;
     void take_large_step();
-    void check_for_regeneration();
+    void check_for_regeneration(double dt);
     // more output
     int check_overlaps(bool verbose = false) const;
     void write_xyz() const;
