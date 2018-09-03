@@ -5,10 +5,12 @@
 ///
 
 #include <iostream>
+#include <cstdio>
 #include <cmath>
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <experimental/filesystem>
 
 #include "simulation.hpp"
 #include "sampling.hpp"
@@ -29,6 +31,13 @@ Simulation::Simulation() {
     else {
 	state_.load_state(cell_length_, max_leaf_size_, restart_path, 
 			  rejection_only_);
+	// make copy of restart file so that it is not deleted later
+	auto option = \
+	    std::experimental::filesystem::copy_options::overwrite_existing;
+	std::experimental::filesystem::copy_file(restart_path, 
+						 "save_" + restart_path, 
+						 option);
+						 
     }
 }
 
@@ -58,7 +67,15 @@ void Simulation::run_simulation() {
 		state_.check_for_regeneration(dt_);
 	    }
 	}
-	if (i % write_frame_interval_ == 0) {
+	if (write_restart_interval_ > 0 && i % write_restart_interval_ == 0) {
+	    state_.save_state();
+	    // remove file from two intervals ago
+	    int remove = i - 2 * write_restart_interval_;
+	    std::string remove_path = ("restart_" + std::to_string(remove) + 
+				       ".ser");
+	    std::remove(remove_path.c_str());
+	}
+	if (i % progress_interval_ == 0) {
 	    std::cout << "N_plated = " << i << std::endl;
 	}
     }
@@ -120,8 +137,10 @@ std::string Simulation::initialize_params() {
 	restart_path = "";
     }
 
-    write_frame_interval_ = \
-	static_cast <int> (std::stod(params_map["write_frame_interval"]));
+    write_restart_interval_ = \
+	static_cast <int> (std::stod(params_map["write_restart_interval"]));
+    progress_interval_ = \
+	static_cast <int> (std::stod(params_map["progress_interval"]));
     cluster_size_ = static_cast <int> (std::stod(params_map["cluster_size"]));
     max_leaf_size_ = std::stoi(params_map["max_leaf_size"]);
     rejection_only_ = std::stoi(params_map["rejection_only"]);

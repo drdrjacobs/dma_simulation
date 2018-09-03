@@ -14,9 +14,18 @@ import time
 dimension = 2
 # name of main parameter that is going to change from run to run
 parameter = "fraction_max_kappa"
-values = [0.1, 1.0]
+values = list(np.logspace(-3, 0, 8))
+# number of repeats of each value to run
+repeats = 1
 # these params change along with the main parameter
 params_dict = {}
+
+# sort everything appropriately
+values = values * repeats
+for k, v in params_dict:
+    v = v * repeats
+    params_dict[k] = [_ for value, _ in sorted(zip(values, v))]
+values = sorted(values)
 
 executable_base = "ga_simulation"
 id_key = "SLURM_ARRAY_TASK_ID"

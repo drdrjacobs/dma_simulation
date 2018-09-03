@@ -9,8 +9,10 @@
 # std::string restart_path = restart_100000.ser
 
 # scientific notation okay for these ints
-# in terms of number of added particles
-int write_frame_interval = 1000
+# in terms of number of added particles, 0 means do not write out until end
+int write_restart_interval = 1000
+# in terms of number of added particles, prints progress
+int progress_interval = 1000
 # size of cluster to end simulation at
 int cluster_size = 10000
 

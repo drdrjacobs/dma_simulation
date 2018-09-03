@@ -1,7 +1,9 @@
 #!/bin/bash
 export GLOBAL_RNG_SEED=$(date +%s)
-values="$(grep 'values =' run.py)"
-# count commas to get number of values - 1
-count="$(echo $values | grep -o , | wc -l)"
+# python script writes file count.sh
+# this file contains the variable COUNT that is the number of jobs to run
+python get_count.py
+source count.sh
 # submit number of values jobs
-sbatch --array 0-$count run.sh
+sbatch --array 0-$COUNT run.sh
+/bin/rm count.sh

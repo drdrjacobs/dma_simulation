@@ -65,9 +65,12 @@ private:
 
     // Essential IO
     
-    /// Writes simulation xyz frame after every interval in terms of the number
-    /// of particles that have been added
-    int write_frame_interval_;
+    /// Writes restart file after every interval in terms of the number
+    /// of particles that have been added, setting to 0 means no write outs
+    int write_restart_interval_;
+    /// Writes progress every interval in terms of the number of particles 
+    /// that have been added
+    int progress_interval_;
 
     // Internal simulation parameters 
     
