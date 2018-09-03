@@ -5,7 +5,7 @@ with open("run.py") as f:
     lines = [_ for _ in f]
 values_line = [_ for _ in lines if _[:9] == "values = "]
 values_line = values_line[0]
-repeats_line = [_ for _ in lines if _[:9] == "repeats = "]
+repeats_line = [_ for _ in lines if _[:10] == "repeats = "]
 repeats_line = repeats_line[0]
 # syntax is "values = list(np.logspace(min, max, N))"
 count = int(values_line.split(",")[-1].split(")")[0])
