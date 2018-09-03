@@ -2,7 +2,7 @@
 
 # defines library paths, and compiler flags, includes, libs shared with 
 # simulation exectables
-include ../variables.mk
+include ../config.mk
 
 # Directory names
 SRCDIR = src

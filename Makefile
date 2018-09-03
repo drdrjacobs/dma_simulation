@@ -2,7 +2,7 @@
 
 # defines directory names, library paths, and compiler flags, includes, libs 
 # shared with tests
-include variables.mk
+include config.mk
 
 # Input Names
 CPP_SRC_PATHS = $(wildcard $(SRCDIR)/*.cpp)
