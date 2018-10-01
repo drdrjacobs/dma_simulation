@@ -9,23 +9,19 @@ import argparse
 import pickle
 import random
 import time
+import IPython as ipy
+import pickle as pkl
 
+with open("values.pkl", "rb") as f:
+    data = pkl.load(f)
 # dimension 2 or 3
-dimension = 2
+dimension = data["dimension"]
 # name of main parameter that is going to change from run to run
-parameter = "fraction_max_kappa"
-values = list(np.logspace(-3, 0, 8))
-# number of repeats of each value to run
-repeats = 1
+parameter = data["parameter"]
+# values parameter takes on
+values = data["values"]
 # these params change along with the main parameter
-params_dict = {}
-
-# sort everything appropriately
-values = values * repeats
-for k, v in params_dict:
-    v = v * repeats
-    params_dict[k] = [_ for value, _ in sorted(zip(values, v))]
-values = sorted(values)
+params_dict = data["params_dict"]
 
 executable_base = "ga_simulation"
 id_key = "SLURM_ARRAY_TASK_ID"
