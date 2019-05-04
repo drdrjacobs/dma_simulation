@@ -188,13 +188,13 @@ TEST_CASE("test first_hit_3d_rotation", "[sampling]") {
 	Vec particle;
 	Vec answer;
 	double epsilon = 1e-8;
-	SECTION( "test no rotation if point along same axis") {
+	SECTION( "test no rotation if pointing along same axis") {
 	    hit_vector << 3, 0, 3;
 	    particle << 0, 0, 5;
 	    Vec result = Sampling::first_hit_3d_rotation(hit_vector, particle);
 	    REQUIRE(result.cwiseEqual(hit_vector).count() == kDims);
 	}
-	SECTION( "test no rotation if almost point along same axis") {
+	SECTION( "test no rotation if almost pointing along same axis") {
 	    hit_vector << 3, 0, 3;
 	    particle << epsilon, epsilon, 5;
 	    Vec result = Sampling::first_hit_3d_rotation(hit_vector, particle);
@@ -206,6 +206,21 @@ TEST_CASE("test first_hit_3d_rotation", "[sampling]") {
 	    answer << 3, 2, -1;
 	    Vec result = Sampling::first_hit_3d_rotation(hit_vector, particle);
 	    REQUIRE(result.isApprox(answer, epsilon));
+	}
+	SECTION( "test reflection across xy plane if pointing along -z axis") {
+	    hit_vector << 3, 0, 3;
+	    answer << 3, 0, -3;
+	    particle << 0, 0, -5;
+	    Vec result = Sampling::first_hit_3d_rotation(hit_vector, particle);
+	    REQUIRE(result.cwiseEqual(answer).count() == kDims);
+	}
+	SECTION( "test reflection across xy plane if almost pointing along "
+		 "-z axis") {
+	    hit_vector << 3, 0, 3;
+	    answer << 3, 0, -3;
+	    particle << epsilon, epsilon, -5;
+	    Vec result = Sampling::first_hit_3d_rotation(hit_vector, particle);
+	    REQUIRE(result.cwiseEqual(answer).count() == kDims);
 	}
     }
 }

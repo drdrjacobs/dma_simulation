@@ -228,20 +228,27 @@ Vec Sampling::first_hit_3d_rotation(Vec hit_vector, Vec particle) {
     Vec particle_unit_vector = particle / particle.norm();
     Vec z_unit_vector;
     z_unit_vector << 0, 0, 1;
+    // in range [0, pi]
     double angle = std::acos(z_unit_vector.dot(particle_unit_vector));
     double epsilon = 1e-8;
-    if (angle > epsilon) {
-	// if constexpr new c++17 feature provides compile time if
-	// this prevents Eigen static assertions from triggering for 
-	// undefined operitations in 2d (cross product, rotation about 
-	// arbitrary axis) even though code would never actually run
-	if constexpr(kDims == 3) {
-	    Vec axis =  z_unit_vector.cross(particle_unit_vector);
+    if (angle > epsilon and M_PI - angle > epsilon) {
+        // if constexpr new c++17 feature provides compile time if 
+        // this prevents Eigen static assertions from triggering for 
+        // undefined operations in 2d (cross product, rotation about 
+        // arbitrary axis) even though code would never actually run 
+        if constexpr(kDims == 3) {
+	    Vec axis = z_unit_vector.cross(particle_unit_vector);
 	    // cross product is not normalized
 	    axis = axis / axis.norm();
 	    Eigen::AngleAxis<double> rotation(angle, axis);
 	    result = rotation * result;
 	}
+    }
+    else if (M_PI - angle < epsilon) {
+        // particle is on -z axis, rotation is degenerate, choose rotation that
+	// reflects across xy plane, this preserves uniform distribution in phi
+        const int Z = 2;
+        result(Z) = -result(Z);
     }
     // otherwise, particle is on z axis and we're done
     return result;

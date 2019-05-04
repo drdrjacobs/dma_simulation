@@ -96,9 +96,8 @@ void State::load_state(double cell_length, int max_leaf_size,
     stream >> uniform_;
     stream.close();
 
-    // set up kd_tree
+    // set up kd_tree and add points
     kd_tree_.reset(new State::KDTree(kDims, plated_cloud_, max_leaf_size));
-    (*(*kd_tree_).index).addPoints(0, plated_cloud_.size() - 1);
 
     rejection_only_ = rejection_only;
 }
@@ -600,6 +599,7 @@ void State::write_xyz() const {
 
     int N_plated = plated_cloud_.size();
     std::ofstream xyz_file;
+    xyz_file.precision(std::numeric_limits<double>::max_digits10);
     std::string path = ("frame_" + std::to_string(N_plated) + ".xyz");
     xyz_file.open(path);
     // header is total number of plated
