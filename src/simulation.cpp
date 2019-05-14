@@ -192,8 +192,7 @@ std::string Simulation::initialize_params() {
     
     // kappa = p_ / sqrt(dt) 
     double kappa = p_ / std::sqrt(dt_);
-    std::cout << "da = kappa^2 = " << std::pow(kappa, 2) << std::endl << 
-	std::endl;
+    std::cout << "da = kappa = " << kappa << std::endl << std::endl;
     
     return restart_path;
 }
