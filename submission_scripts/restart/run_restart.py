@@ -68,6 +68,7 @@ with open(folder + "/" + log_file, "w") as log:
         with open(folder + "/old_" + params_file) as params_in:
             lines = [l.strip() for l in params_in]
             lines = [l for l in lines if l and l[0] != "#"]
+            has_restart = False
             for l in lines:
                 l = l.split()
                 # format of line is type parameter = value
@@ -75,10 +76,14 @@ with open(folder + "/" + log_file, "w") as log:
                 p = l[1]
                 v = l[3]
                 if p == "restart_path":
+                    has_restart = True
                     v = restart_file
                 elif p in params_dict:
                     v = params_dict[p][id]
                 new_l = "{} {} = {}\n".format(parameter_type, p, v)
+                params_out.write(new_l)
+            if not has_restart:
+                new_l = "std::string restart_path = {}\n".format(restart_file)
                 params_out.write(new_l)
 
     # os call to run
