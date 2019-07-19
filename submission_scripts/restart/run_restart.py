@@ -30,6 +30,8 @@ params_file = "params.txt"
 parser = argparse.ArgumentParser(description = __doc__)
 parser.add_argument("executable_folder", 
                     help = "absolute path to executable folder")
+parser.add_argument("--write", action = "store_true",
+                    help = "write out restart files as xyz files")
 args = parser.parse_args()
 
 if args.executable_folder[-1] != "/":
@@ -62,6 +64,8 @@ with open(folder + "/" + log_file, "w") as log:
         restart_file = restart_files[-2]
     else:
         restart_file = restart_files[0]
+    restart_N = int(restart_file.split("_")[-1][:-4])
+        
     # write modified params
     os.rename(folder + "/" + params_file, folder + "/old_" + params_file)
     with open(folder + "/" + params_file, "w") as params_out:
@@ -78,6 +82,8 @@ with open(folder + "/" + log_file, "w") as log:
                 if p == "restart_path":
                     has_restart = True
                     v = restart_file
+                elif args.write and p == "cluster_size":
+                    v = restart_N
                 elif p in params_dict:
                     v = params_dict[p][id]
                 new_l = "{} {} = {}\n".format(parameter_type, p, v)
