@@ -84,6 +84,8 @@ public:
 				 double jump_length, Vec jump,
 				 CellIndices &bounce_cell_indices,
 				 size_t &bounce_plated_index) const;
+    double check_distances_loop(CellIndices bounce_cell_indices,
+				size_t bounce_plated_index) const;
     bool resolve_jump(Vec jump, double p);
     bool take_small_step(double dt, double jump_cutoff, double p_);
     double find_nearest_neighbor() const;

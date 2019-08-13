@@ -280,6 +280,39 @@ double State::check_collisions_loop(Vec jump_unit_vector,
     return minimum_collision_distance;
 }
 
+/// @brief Calculates minimum distance between particle and nearest non-bounce
+/// plated.
+///
+/// @param bounce_cell_indices: indices of cell containing plated that 
+///     particle just bounced off of
+/// @param bounce_plated_index: index of plated that particle just 
+///     bounced off of
+///
+/// @returns min_distance: min distance between particle and nearest non-bounce
+///     plated
+///
+double State::check_distances_loop(CellIndices bounce_cell_indices,
+				   size_t bounce_plated_index) const {
+    double min_distance = kNoCollision;
+    for (int offset = 0; offset < Cells::kCellsToLoopOver; offset++) {
+	CellIndices cell_indices = cells_.offset_get_cell_indices(particle_, 
+								  offset);
+	const std::vector<Vec>& cell = cells_.get_cell(cell_indices);
+	for (size_t i = 0; i < cell.size(); i++) {
+	    // if plated is not plated that was just bounced against
+	    if (cell_indices != bounce_cell_indices ||
+		i != bounce_plated_index) {
+		Vec plated_r = cell[i];
+		double distance = (particle_ - plated_r).norm();
+		if (distance < min_distance) {
+		    min_distance = distance;
+		}
+	    }
+	}
+    }
+    return min_distance;
+}
+
 /// @brief Tranforms particle into plated at its current position.
 ///
 void State::stick_particle() {
@@ -393,19 +426,35 @@ State::Status State::resolve_stick_or_bounce(double p,
     else {
 	// collision has occured
 	// put particle in contact with plated
-	particle_ += minimum_collision_distance * jump_unit_vector;    
+	particle_ += minimum_collision_distance * jump_unit_vector;
 	if (uniform_(gen_) < p) {
 	    // particle stuck
 	    status = stuck;
 	    stick_particle();
 	}
 	else {
-	    // bounce, assigns new jump if successful or turns into rejection
-	    // move
-	    status = attempt_bounce(minimum_collision_distance, 
-				    bounce_cell_indices, bounce_plated_index,
-				    initial_particle,
-				    jump_unit_vector, jump_length, jump);
+	    // need to make sure that not too close to any other plated except
+	    // plated that bounce is about to occur off of otherwise could miss
+	    // boundary of different plated after this bounce
+	    // check all distances, reject if too close
+	    double min_distance = check_distances_loop(bounce_cell_indices,
+						       bounce_plated_index);
+	    if (min_distance <= kDiameter + kSpatialEpsilon) {
+		// particle too close to non-bounce plated
+		// rejection move instead
+		status = rejection;
+		particle_ = initial_particle;
+		std::cout << "Other rejection!" << std::endl;
+	    }
+	    else { 
+		// starting point of bounce is valid, so try bounce
+		// bounce, assigns new jump if successful or turns into 
+		// rejection move if jump does not separate from contact enough
+		status = attempt_bounce(minimum_collision_distance, 
+					bounce_cell_indices, 
+					bounce_plated_index, initial_particle,
+					jump_unit_vector, jump_length, jump);
+	    }
 	}
     }
     return status;
