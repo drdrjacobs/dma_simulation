@@ -7,6 +7,7 @@
 
 #include <string>
 #include <map>
+#include <utility>
 
 #include "constants.hpp"
 #include "state.hpp"
@@ -44,9 +45,11 @@ public:
     void run_simulation();
    
 private:
+    void save_parallel_state() const;
+    void load_parallel_state(std::string parallel_path);
     void resolve_sticking();
     std::map<std::string, std::string> read_params_file() const;
-    std::string initialize_params();
+    std::pair<std::string, std::string> initialize_params();
 
     // Essential physical variables.
     

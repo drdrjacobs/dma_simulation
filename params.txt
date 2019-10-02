@@ -6,7 +6,10 @@
 #
 # scientific notation okay for floats
 
+# always must provide serial file to restart from
 std::string restart_path = restart_10000.ser
+# restart from parallel state
+# std::string parallel_path = restart_20011.prl
 
 # scientific notation okay for these ints
 # in terms of number of added particles, 0 means do not write out until end
@@ -35,7 +38,7 @@ int max_leaf_size = 10
 # use 0 or 1 for bools, if true, rejection moves are used instead of bounces
 bool rejection_only = 0
 
-# parallel 
+# How many steps to run before threads communicate and update cluster
 int parallel_interval = 100
 
 # seeds rng

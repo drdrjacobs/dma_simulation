@@ -13,6 +13,10 @@
 #include <experimental/filesystem>
 #include "omp.h"
 
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/serialization/vector.hpp>
+
 #include "simulation.hpp"
 #include "sampling.hpp"
 
@@ -24,7 +28,9 @@ const std::string Simulation::kParamsFilename = "params.txt";
 Simulation::Simulation() {
     // get simulattion parameters
     std::cout << "DIMENSIONS = " << kDims << std::endl;
-    std::string restart_path = initialize_params();
+    auto paths = initialize_params();
+    std::string restart_path = paths.first;
+    std::string parallel_path = paths.second;
 
     /// parallel infrastructure
     #pragma omp parallel 
@@ -36,33 +42,139 @@ Simulation::Simulation() {
     }    
     std::cout << "N_threads_ = " << N_threads_ << std::endl << std::endl;
 
-    // set up rng
-    gen_ = std::mt19937(seed_);
-    uniform_ = Uniform(0.0, 1.0);
-    if (!restart_path.empty()) {
+    if (restart_path.empty()) {
+	std::cout << "Must always provide serial file to start from!" << 
+	    std::endl;
+	std::exit(0);
+    }
+    else {
 	// load serial state
 	state_.load_state(cell_length_, max_leaf_size_, restart_path, 
 			  rejection_only_);
-
-	bool stuck = false;
-	for (int i = 0; i < N_threads_; i++) {
-	    particles_.push_back(state_.create_new_particle(gen_, uniform_));
-	    stuck_statuses_.push_back(stuck);
-	    int seed = gen_();
-	    gens_.push_back(std::mt19937(seed));
-	    uniforms_.push_back(Uniform(0.0, 1.0));
+	// make copy of restart file so that it is not deleted later
+        auto option = \
+            std::experimental::filesystem::copy_options::overwrite_existing;
+	std::experimental::filesystem::copy_file(restart_path,
+                                                 "save_" + restart_path,
+                                                 option);
+	if (parallel_path.empty()) {
+	    // restarting from serial state
+	    gen_ = std::mt19937(seed_);
+	    uniform_ = Uniform(0.0, 1.0);
+ 
+	    bool stuck = false;
+	    for (int i = 0; i < N_threads_; i++) {
+		particles_.push_back(state_.create_new_particle(gen_, 
+								uniform_));
+		stuck_statuses_.push_back(stuck);
+		int seed = gen_();
+		gens_.push_back(std::mt19937(seed));
+		uniforms_.push_back(Uniform(0.0, 1.0));
+	    }
+	}
+	else {
+	    load_parallel_state(parallel_path);
 	}
     }
-    else {
-	std::cout << "Must provide serial file to start from!" << std::endl;
+}
+
+/// @brief Serialization writes out exact state of parallel simulation.
+///
+/// Serialization is run through std::vector and boost binary_oarchive.
+///
+/// Requires the params file and number of threads to be set exactly the same 
+/// to work upon loading.
+///
+/// Note that running two trajectories starting from the same serialized state
+/// should produce exactly the same results.
+///
+void Simulation::save_parallel_state() const {
+    std::string restart_string = ("restart_" +
+                                  std::to_string(state_.get_cluster_size()) +
+                                  ".prl");
+    std::ofstream stream(restart_string);
+    boost::archive::binary_oarchive archive(stream);
+    std::vector<std::vector<double>> serialize_particles;
+    for (auto p : particles_) {
+	std::vector<double> v(p.data(), p.data() + kDims);
+        serialize_particles.push_back(v);
+    }
+    archive & serialize_particles;
+    archive & stuck_statuses_;
+
+    stream << N_threads_ << std::endl;
+    stream << gen_ << std::endl;
+    stream << uniform_ << std::endl;
+    for (auto g : gens_) {
+	stream << g << std::endl;
+    }
+    for (auto u : uniforms_) {
+	stream << u << std::endl;
+    }
+}
+
+/// @brief Loads exact serialized parallel state of a simulation.
+///
+/// Serialization is run through std::vector and boost binary_iarchives.
+///
+/// Requires the simulation parameters and number of threads to be set exactly 
+/// the same as when the state was saved to work!
+///
+/// Note that running two trajectories starting from the same serialized state
+/// should produce exactly the same results.
+///
+/// @param parallel_path: file to load from
+///
+void Simulation::load_parallel_state(std::string parallel_path) {
+    std::cout << "Restarting from parallel state." << std::endl;
+
+    std::ifstream stream(parallel_path);
+    boost::archive::binary_iarchive archive(stream);
+    std::vector<std::vector<double>> serialize_particles;
+    archive & serialize_particles;
+    for (auto p : serialize_particles) {
+        Vec v(p.data());
+	particles_.push_back(v);
+    }
+    archive & stuck_statuses_;
+
+    int saved_N_threads;
+    stream >> saved_N_threads;
+    if (N_threads_ != saved_N_threads) {
+	std::cout << "Must use " << saved_N_threads << 
+	    " threads for parallel restart!" << std::endl;
 	std::exit(0);
     }
+    stream >> gen_;
+    stream >> uniform_;
+    std::mt19937 tmp_gen;
+    Uniform tmp_uniform;
+    for (int i = 0; i < N_threads_; i++) {
+	stream >> tmp_gen;
+	gens_.push_back(tmp_gen);
+    }
+    for (int i = 0; i < N_threads_; i++) {
+	stream >> tmp_uniform;
+	uniforms_.push_back(tmp_uniform);
+    }
+    // make copy of restart file so that it is not deleted later
+    auto option = \
+	std::experimental::filesystem::copy_options::overwrite_existing;
+    std::experimental::filesystem::copy_file(parallel_path,
+					     "save_" + parallel_path,
+					     option);
 }
 
 /// @brief Runs simulation starting from current state.
 ///
 void Simulation::run_simulation() { 
     int progress_counter = state_.get_cluster_size() / progress_interval_;
+    int restart_counter = -1;
+    int one_ago_save = state_.get_cluster_size();
+    int two_ago_save = -1;
+    if (write_restart_interval_ > 0) {
+	restart_counter = state_.get_cluster_size() / write_restart_interval_;
+    }
     while (state_.get_cluster_size() < cluster_size_) {
 	// Run in parallel for a while, if cluster is large, sticking 
 	// probability is small and time not too long, bias should be minimal
@@ -103,6 +215,25 @@ void Simulation::run_simulation() {
 	    progress_counter = tmp_progress;
 	    std::cout << "N_plated = " << tmp_progress * progress_interval_ << 
 		std::endl;
+	}
+	if (write_restart_interval_ > 0) {
+	    int tmp_restart = (state_.get_cluster_size() / 
+			       write_restart_interval_);
+	    if (tmp_restart > restart_counter) {
+		restart_counter = tmp_restart;
+		state_.save_state();
+		save_parallel_state();
+		// remove files from two intervals ago
+		std::string remove_path = ("restart_" + 
+					   std::to_string(two_ago_save) + 
+					   ".ser");
+		std::remove(remove_path.c_str());
+		remove_path = ("restart_" + std::to_string(two_ago_save) + 
+			       ".prl");
+		std::remove(remove_path.c_str());
+		two_ago_save = one_ago_save;
+		one_ago_save = state_.get_cluster_size();
+	    }
 	}
     }
     state_.write_xyz();
@@ -194,7 +325,7 @@ std::map<std::string, std::string> Simulation::read_params_file() const {
 /// 
 /// @returns initial_N_ions: number of ions initially in box (sei + bath)
 ///
-std::string Simulation::initialize_params() {
+std::pair<std::string, std::string> Simulation::initialize_params() {
     // parse everything from file as std::strings
     std::map<std::string, std::string> params_map = read_params_file();
 
@@ -205,6 +336,15 @@ std::string Simulation::initialize_params() {
     else {
 	restart_path = "";
     }
+    std::string parallel_path;
+    if (params_map.find("parallel_path") != params_map.end()) {
+	parallel_path = params_map["parallel_path"];
+    }
+    else {
+	parallel_path = "";
+    }
+    std::pair<std::string, std::string> paths = std::make_pair(restart_path, 
+							       parallel_path);
 
     write_restart_interval_ = \
 	static_cast <int> (std::stod(params_map["write_restart_interval"]));
@@ -264,5 +404,5 @@ std::string Simulation::initialize_params() {
     double kappa = p_ / std::sqrt(dt_);
     std::cout << "da = kappa = " << kappa << std::endl << std::endl;
     
-    return restart_path;
+    return paths;
 }
