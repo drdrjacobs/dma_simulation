@@ -44,6 +44,7 @@ public:
     void run_simulation();
    
 private:
+    void resolve_sticking();
     std::map<std::string, std::string> read_params_file() const;
     std::string initialize_params();
 
@@ -85,6 +86,25 @@ private:
     /// seed for rng
     int seed_;    
 
-    /// State object manages data structures that change as simulation advances
+    /// random number generator
+    std::mt19937 gen_;
+    /// uniform [0, 1) distribution for random number generator
+    Uniform uniform_;
+    /// State object manages some data structures that change as simulation 
+    /// advances
     State state_;
+
+    // For parallelism
+
+    /// How many steps to run before threads communicate and update cluster
+    int parallel_interval_;
+    int N_threads_;
+    /// Tracks active particles for each thread
+    std::vector<Vec> particles_;
+    /// Tracks whether given particle is stuck for each thread
+    std::vector<int> stuck_statuses_;
+    /// random number generator for each thread
+    std::vector<std::mt19937> gens_;
+    /// uniform [0, 1) distribution for random number generator for each thread
+    std::vector<Uniform> uniforms_;
 };

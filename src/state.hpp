@@ -55,16 +55,6 @@ public:
     /// @returns cluster_size: the current size of the cluster
     ///
     int get_cluster_size() const {return plated_cloud_.size();}
-    /// @brief Gets particle position.
-    ///
-    /// @returns particle: the particle position
-    ///
-    Vec get_particle() {return particle_;}
-    /// @brief Sets particle position.
-    ///
-    /// @param new_particle: new position
-    ///
-    void set_particle(Vec new_particle) {particle_ = new_particle;}
     /// @brief Gets plated_cloud.
     ///
     /// @param returns plated cloud: vector tracking all plated
@@ -77,20 +67,26 @@ public:
 		    std::string load_path, bool rejection_only = false);
     void save_state() const;
     // for propogation of dynamics
-    void add_new_particle();
-    bool has_neighbors() const;
-    void stick_particle();
+    Vec create_new_particle(std::mt19937 &gen, Uniform &uniform) const;
+    bool has_neighbors(Vec particle) const;
+    void stick_particle(Vec particle);
     double check_collisions_loop(Vec jump_unit_vector,
-				 double jump_length, Vec jump,
+				 double jump_length, Vec jump, Vec particle,
 				 CellIndices &bounce_cell_indices,
 				 size_t &bounce_plated_index) const;
     double check_distances_loop(CellIndices bounce_cell_indices,
-				size_t bounce_plated_index) const;
-    bool resolve_jump(Vec jump, double p);
-    bool take_small_step(double dt, double jump_cutoff, double p_);
-    double find_nearest_neighbor() const;
-    void take_large_step();
-    void check_for_regeneration(double dt);
+				size_t bounce_plated_index, 
+				Vec particle) const;
+    bool resolve_jump(Vec jump, double p, Vec &particle, std::mt19937 &gen,
+		      Uniform &uniform) const;
+    bool take_small_step(double dt, double jump_cutoff, double p, 
+			 Vec &particle, std::mt19937 &gen, 
+			 Uniform &uniform) const;
+    double find_nearest_neighbor(Vec particle) const;
+    void take_large_step(Vec &particle, std::mt19937 &gen, 
+			 Uniform &uniform) const;
+    void check_for_regeneration(double dt, Vec &particle, std::mt19937 &gen, 
+				Uniform &uniform) const;
     // more output
     int check_overlaps(bool verbose = false) const;
     void write_xyz() const;
@@ -103,16 +99,15 @@ private:
 			  size_t bounce_plated_index,
 			  Vec initial_particle,
 			  Vec jump_unit_vector, double jump_length,
-			  Vec &jump);
-    Status resolve_stick_or_bounce(double p, double minimum_collision_distance,
+			  Vec &jump, Vec &particle) const;
+    Status resolve_stick_or_bounce(double p,
+				   double minimum_collision_distance,
 				   CellIndices bounce_cell_indices,
 				   size_t bounce_plated_index,
 				   Vec initial_particle,
 				   Vec jump_unit_vector, double jump_length,
-				   Vec &jump);
-
-    /// Position of diffusing particle
-    Vec particle_;
+				   Vec &jump, Vec &particle,
+				   std::mt19937 &gen, Uniform &uniform) const;
     /// cloud of plated, std::vector of eigen vectors, used for kd_tree
     std::vector<Vec> plated_cloud_;
     /// nanoflann based k dimensional tree for finding nearest neighbor of 

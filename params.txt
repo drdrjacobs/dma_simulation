@@ -6,7 +6,7 @@
 #
 # scientific notation okay for floats
 
-# std::string restart_path = restart_100000.ser
+std::string restart_path = restart_10000.ser
 
 # scientific notation okay for these ints
 # in terms of number of added particles, 0 means do not write out until end
@@ -14,7 +14,7 @@ int write_restart_interval = 1000
 # in terms of number of added particles, prints progress
 int progress_interval = 1000
 # size of cluster to end simulation at
-int cluster_size = 10000
+int cluster_size = 20000
 
 # expected length of particle movement in 2d or 3d
 # setting this sets timestep implicitly
@@ -34,6 +34,9 @@ float fraction_max_kappa = 1.0
 int max_leaf_size = 10
 # use 0 or 1 for bools, if true, rejection moves are used instead of bounces
 bool rejection_only = 0
+
+# parallel 
+int parallel_interval = 100
 
 # seeds rng
 int seed = 0
