@@ -6,7 +6,8 @@ import pickle as pkl
 # dimension 2 or 3 
 dimension = 2
 count = len(glob.glob("id_*"))
-params_dict = {"cluster_size": [300e6] * count}
+params_dict = {"cluster_size": [100e6] * count,
+               "parallel_interval": [100] * count}
 
 out_dict = {"params_dict": params_dict,
             "dimension": dimension}

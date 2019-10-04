@@ -252,7 +252,7 @@ void Simulation::resolve_sticking() {
 		    double distance = (particles_[i] - particles_[j]).norm();
 		    if (distance < kDiameter + kSpatialEpsilon) {
 			stuck_statuses_[j] = false;
-			//std::cout << "Stuck overlap!" << std::endl;
+			std::cout << "Stuck overlap!" << std::endl;
 		    }
 		}
 	    }
@@ -269,7 +269,7 @@ void Simulation::resolve_sticking() {
 		    if (distance < kDiameter + kSpatialEpsilon) {
 			particles_[i] = state_.create_new_particle(gen_, 
 								   uniform_);
-			//std::cout << "Free overlap!" << std::endl;
+			std::cout << "Free overlap!" << std::endl;
 		    }
 		}
 	    }

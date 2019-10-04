@@ -65,6 +65,11 @@ with open(folder + "/" + log_file, "w") as log:
     else:
         restart_file = restart_files[0]
     restart_N = int(restart_file.split("_")[-1][:-4])
+
+    parallel_file = "restart_" + str(restart_N) + ".prl"
+    parallel_restart_exists = False
+    if os.path.isfile(folder + "/" + parallel_file):
+        parallel_restart_exists = True
         
     # write modified params
     os.rename(folder + "/" + params_file, folder + "/old_" + params_file)
@@ -72,24 +77,41 @@ with open(folder + "/" + log_file, "w") as log:
         with open(folder + "/old_" + params_file) as params_in:
             lines = [l.strip() for l in params_in]
             lines = [l for l in lines if l and l[0] != "#"]
+            has_parallel_interval = False
             has_restart = False
+            has_parallel_path = False
             for l in lines:
                 l = l.split()
                 # format of line is type parameter = value
                 parameter_type = l[0]
                 p = l[1]
                 v = l[3]
+                if p == "parallel_interval":
+                    has_parallel_interval = True
                 if p == "restart_path":
                     has_restart = True
                     v = restart_file
+                elif p == "parallel_path":
+                    # restarting parallel run that has been restarted before
+                    has_parallel_path = True
+                    v = parallel_file
                 elif args.write and p == "cluster_size":
                     v = restart_N
                 elif p in params_dict:
                     v = params_dict[p][id]
                 new_l = "{} {} = {}\n".format(parameter_type, p, v)
                 params_out.write(new_l)
+            if not has_parallel_interval:
+                new_l = ("int parallel_interval " +
+                         "= {}\n".format(params_dict["parallel_interval"][id]))
+                params_out.write(new_l)
             if not has_restart:
                 new_l = "std::string restart_path = {}\n".format(restart_file)
+                params_out.write(new_l)
+            if parallel_restart_exists and not has_parallel_path:
+                # restarting parallel run for first time
+                new_l = ("std::string parallel_path = " +
+                         "{}\n".format(parallel_file))
                 params_out.write(new_l)
 
     # os call to run
