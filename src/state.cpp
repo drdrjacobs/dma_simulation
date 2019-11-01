@@ -61,20 +61,23 @@ void State::set_up_new_state(double L, double cell_length, int max_leaf_size,
 /// Note that running two trajectories starting from the same serialized state
 /// should produce exactly the same results.
 ///
+/// @param L: Length of simulation cell in x (and z for 3d) directions 
+///     perpendicular to growth
 /// @param cell_length: the length of each cell
 /// @param max_leaf_size: optimization parameter for kd tree
 /// @param load_path: path to file to load
 /// @param rejection_only: default false, if true rejection used instead of
 ///    bouncing
 ///
-void State::load_state(double cell_length, int max_leaf_size, 
+void State::load_state(double L, double cell_length, int max_leaf_size, 
 		       std::string load_path, bool rejection_only) {
     std::ifstream stream(load_path);
     boost::archive::binary_iarchive archive(stream);
 
     std::vector<std::vector<double>> serialize_plated;
     archive & serialize_plated;
-
+    
+    L_ = L;
     // set up cells
     cells_.set_up_cells(cell_length, L_);
     plated_cloud_.clear();

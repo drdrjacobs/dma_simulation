@@ -29,9 +29,7 @@ Simulation::Simulation() {
 				rejection_only_);
     }
     else {
-	std::cout << "ERROR: Load not implemented yet!" << std::endl;
-	std::exit(-1);
-	state_.load_state(cell_length_, max_leaf_size_, restart_path, 
+	state_.load_state(L_, cell_length_, max_leaf_size_, restart_path, 
 			  rejection_only_);
 	// make copy of restart file so that it is not deleted later
 	auto option = \
@@ -39,7 +37,6 @@ Simulation::Simulation() {
 	std::experimental::filesystem::copy_file(restart_path, 
 						 "save_" + restart_path, 
 						 option);
-						 
     }
 }
 

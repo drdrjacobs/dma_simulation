@@ -74,7 +74,7 @@ public:
 
     void set_up_new_state(double L, double cell_length, int max_leaf_size, 
 			  int seed, bool rejection_only = false);
-    void load_state(double cell_length, int max_leaf_size, 
+    void load_state(double L, double cell_length, int max_leaf_size, 
 		    std::string load_path, bool rejection_only = false);
     void save_state() const;
     // for propogation of dynamics
