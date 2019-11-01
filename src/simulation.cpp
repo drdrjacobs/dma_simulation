@@ -25,10 +25,12 @@ Simulation::Simulation() {
     std::cout << "DIMENSIONS = " << kDims << std::endl;
     std::string restart_path = initialize_params();
     if (restart_path.empty()) {
-	state_.set_up_new_state(cell_length_, max_leaf_size_, seed_, 
+	state_.set_up_new_state(L_, cell_length_, max_leaf_size_, seed_, 
 				rejection_only_);
     }
     else {
+	std::cout << "ERROR: Load not implemented yet!" << std::endl;
+	std::exit(-1);
 	state_.load_state(cell_length_, max_leaf_size_, restart_path, 
 			  rejection_only_);
 	// make copy of restart file so that it is not deleted later
@@ -52,19 +54,38 @@ void Simulation::run_simulation() {
 	while (!stuck) {
 	    // check to see if there are any plated in current cell or 
 	    // surrounding cells
-	    if (state_.has_neighbors()) {
+	    //if (state_.has_neighbors()) {
 		// take a step forward in time since a collision is 
 		// possible
-		stuck = state_.take_small_step(dt_, jump_cutoff_, p_);
-	    }
+	    stuck = state_.take_small_step(dt_, jump_cutoff_, p_);
+	    //}
+	    /*
 	    else {
 		// nearest plated is far away, take large step
 		state_.take_large_step();
 	    }
+	    */
 	    // regenerate particle from first-hit distribution if it gets too 
 	    // far away from cluster
 	    if (!stuck) {
 		state_.check_for_regeneration(dt_);
+	    }
+	    // Extra checks on pbcs
+	    Vec check = state_.get_particle();
+	    const int X = 0;
+	    const int Y = 1;
+	    const int Z = 2;
+	    if (check[Y] < 0.0 or (check[Y] == 0.0 && !stuck)) {
+		std::cout << "Y error " << check << std::endl;
+		std::exit(-1);
+	    }
+	    if (check[X] < -L_ / 2 or check[X] >= L_ / 2) {
+		std::cout << "X error " << check << std::endl;
+		std::exit(-1);
+	    }
+	    if (kDims == 3 && (check[Z] < -L_ / 2 or check[Z] >= L_ / 2)) {
+		std::cout << "Z error " << check << std::endl;
+		std::exit(-1);
 	    }
 	}
 	if (write_restart_interval_ > 0 && i % write_restart_interval_ == 0) {
@@ -146,6 +167,9 @@ std::string Simulation::initialize_params() {
     rejection_only_ = std::stoi(params_map["rejection_only"]);
     seed_ = std::stoi(params_map["seed"]);
 
+    L_ = std::stod(params_map["L"]);
+    std::cout << "L__ = " << L_ << std::endl;
+
     // set expected length of particle movement in 2d or 3d
     double rms_jump_size = std::stod(params_map["rms_jump_size"]);
     // in one dimensional Brownian motion, the rms length of paticle step is 
@@ -162,7 +186,19 @@ std::string Simulation::initialize_params() {
     // so that all collisions can be resolved
     double max_jump_length = std::sqrt(2 * kDims * dt_) * jump_cutoff_;
     std::cout << "max_jump_length = " << max_jump_length << std::endl;
-    cell_length_ = max_jump_length + kDiameter + kSpatialEpsilon;
+    double min_cell_length = max_jump_length + kDiameter + kSpatialEpsilon;
+    std::cout << "min_cell_length = " << min_cell_length << std::endl;
+    // the cell length is (L_ / 2) / m where m is the largest whole number 
+    // such that (L_ / 2) / m > min_cell_length
+    // this makes the cells as small as possible while also ensuring that the
+    // end of the last cell exactly lines up with the end of the box
+    int m = 1;
+    for (int i = 1; i < L_ / 2; i++) {
+	if ((L_ / 2) / i > min_cell_length) {
+	    m = i;
+	}
+    }
+    cell_length_ = (L_ / 2) / m;
     std::cout << "cell_length_ = " << cell_length_ << std::endl;
 
     if (params_map.find("kappa") != params_map.end()) {

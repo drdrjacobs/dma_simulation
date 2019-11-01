@@ -30,9 +30,14 @@ const Cells::CellMap& Cells::get_cell_map() const {
 /// @brief Sets cell_length
 ///
 /// @param cell_length: the length of each cell
+/// @param L: Length of simulation cell in x (and z for 3d) direction(s) 
+///     perpendicular to growth
 ///
-void Cells::set_up_cells(double cell_length) {
+void Cells::set_up_cells(double cell_length, double L) {
     cell_length_ = cell_length;
+    max_negative_index_ = -std::round((L / 2) / cell_length);
+    // Positive cells include zero, negatives do not
+    max_positive_index_ = std::round((L / 2) / cell_length) - 1;
 }
 
 /// @brief Gets the cell indicies for a given position vector, uses floor.
@@ -102,6 +107,21 @@ Cells::CellIndices Cells::offset_get_cell_indices(CellIndices central_cell,
     indices[Y] = indices[Y] + ((offset % 9) / 3 - 1);
     if (kDims == 3) {
         indices[Z] = indices[Z] + ((offset / 9) - 1);
+    }
+    // apply pbcs
+    if (indices[X] > max_positive_index_) {
+	indices[X] = max_negative_index_;
+    }
+    else if (indices[X] < max_negative_index_) {
+	indices[X] = max_positive_index_;
+    }
+    if (kDims == 3) {
+	if (indices[Z] > max_positive_index_) {
+	    indices[Z] = max_negative_index_;
+	}
+	else if (indices[Z] < max_negative_index_) {
+	    indices[Z] = max_positive_index_;
+	}
     }
     return indices;
 }

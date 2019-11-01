@@ -48,7 +48,10 @@ private:
     std::string initialize_params();
 
     // Essential physical variables.
-    
+
+    /// Length of simulation cell in x (and z for 3d) direction(s) 
+    /// perpendicular to growth
+    double L_;    
     /// Timestep, controls size of gaussian particle jumps when close to plated
     /// otherwise dynamics are exactly Brownian
     double dt_;

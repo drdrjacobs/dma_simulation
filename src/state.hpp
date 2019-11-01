@@ -42,6 +42,7 @@ public:
 
     // Documented in the cpp
     static const int kNoCollision;
+    static const int kBottomCollision;
 
     /// @brief blank constructor, must call ethier load_state or 
     /// set_up_new_state.
@@ -71,8 +72,8 @@ public:
     ///
     std::vector<Vec>& get_plated_cloud() {return plated_cloud_;}
 
-    void set_up_new_state(double cell_length, int max_leaf_size, int seed,
-			  bool rejection_only = false);
+    void set_up_new_state(double L, double cell_length, int max_leaf_size, 
+			  int seed, bool rejection_only = false);
     void load_state(double cell_length, int max_leaf_size, 
 		    std::string load_path, bool rejection_only = false);
     void save_state() const;
@@ -111,6 +112,9 @@ private:
 				   Vec jump_unit_vector, double jump_length,
 				   Vec &jump);
 
+    /// Length of simulation cell in x (and z for 3d) direction(s) 
+    /// perpendicular to growth
+    double L_;
     /// Position of diffusing particle
     Vec particle_;
     /// cloud of plated, std::vector of eigen vectors, used for kd_tree
@@ -120,8 +124,8 @@ private:
     std::unique_ptr<KDTree> kd_tree_;
     /// Object handles storing plated in cell structure
     Cells cells_;
-    //// tracks radius of cluster, distance from origin to furthest plated
-    double radius_;
+    //// tracks height of cluster, y value of largest plated
+    double height_;
     /// random number generator
     std::mt19937 gen_;
     /// uniform [0, 1) distribution for random number generator
@@ -137,3 +141,5 @@ double calculate_collisions(double minimum_collision_distance,
 			    Vec particle, Vec plated_r,
 			    Vec jump_unit_vector, double jump_length, 
 			    Vec jump);
+Vec enforce_pbcs(Vec v, double L);
+Vec calculate_minimum_image(Vec plated, Vec particle, double L);

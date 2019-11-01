@@ -20,31 +20,29 @@
 /// Used in collision detection loop to indicate particle has not hit any
 /// plated
 const int State::kNoCollision = std::numeric_limits<int>::max();
+/// Used to indicate that particle has hit the bottom (y = 0) of simulation 
+/// cell
+const int State::kBottomCollision = std::numeric_limits<int>::max() - 1;
 
 /// @brief Sets up new state with single plated at origin.
 ///
+/// @param L: Length of simulation cell in x (and z for 3d) directions 
+///     perpendicular to growth
 /// @param cell_length: the length of each cell
 /// @param max_leaf_size: optimization parameter for kd tree
 /// @param seed: seed for state random number generator
 /// @param rejection_only: default false, if true rejection used instead of
 ///    bouncing
 ///
-void State::set_up_new_state(double cell_length, int max_leaf_size, int seed,
-			     bool rejection_only) {
+void State::set_up_new_state(double L, double cell_length, int max_leaf_size, 
+			     int seed, bool rejection_only) {
+    L_ = L;
     // set up cells
-    cells_.set_up_cells(cell_length);
+    cells_.set_up_cells(cell_length, L);
 
-    // single plated at origin to start
-    plated_cloud_.resize(1);
-    for (int i = 0; i < kDims; i++) {
-	plated_cloud_.at(0)(i) = 0;
-    }
     // assign smart pointer
     kd_tree_.reset(new KDTree(kDims, plated_cloud_, max_leaf_size));
-    (*(*kd_tree_).index).addPoints(0, 0);
-    radius_ = 0;
-    
-    cells_.add_to_cells(plated_cloud_.at(0));
+    height_ = 0;
     
     // set up rng
     gen_ = std::mt19937(seed);
@@ -78,13 +76,14 @@ void State::load_state(double cell_length, int max_leaf_size,
     archive & serialize_plated;
 
     // set up cells
-    cells_.set_up_cells(cell_length);
+    cells_.set_up_cells(cell_length, L_);
     plated_cloud_.clear();
-    radius_ = 0;
+    height_ = 0;
+    const int Y = 1;
     for (auto p : serialize_plated) {
 	Vec v(p.data());
-	if (v.norm() > radius_) {
-	    radius_ = v.norm();
+	if (v[Y] > height_) {
+	    height_ = v[Y];
 	}
 	plated_cloud_.push_back(v);
 	// reconstruct cells
@@ -131,16 +130,18 @@ void State::save_state() const {
     stream.close();
 }
 
-/// @brief Adds new particle to simulation that starts just outside cluster 
-/// radius.
+/// @brief Adds new particle to simulation that starts just above cluster 
+/// height. 
+///
+/// Particle starting at infinite y will be equally likely to hit xz plate 
+/// anywhere.
 ///
 void State::add_new_particle() {
-    // radius at which new particle should be generated at need 2 times 
+    // height at which new particle should be generated at need 2 times 
     // epsilon, due to epsilon skin around plated           
-    double generation_radius = (radius_ + kDiameter + 2 * kSpatialEpsilon);
-    // position vector of diffusing particle
-    particle_ = Sampling::generate_point_on_sphere(generation_radius,
-						   gen_, uniform_);
+    double generation_height = (height_ + kDiameter + 2 * kSpatialEpsilon);
+    particle_ = Sampling::generate_point_on_plane(generation_height, L_, gen_, 
+						  uniform_);
 }
 
 /// @brief Checks to see if there are neigboring plated around particle.
@@ -234,7 +235,8 @@ double get_collision_distance(Vec particle, Vec plated_r,
 ///
 /// @param jump_unit_vector: unit vector pointing along jump, accounts for 
 ///     precision
-/// @param jump_length: length of jump along unit vector, accounts for precsion
+/// @param jump_length: length of jump along unit vector, accounts for 
+///     precision
 /// @param jump: vector that discribes particle jump
 /// @param[out] bounce_cell_indices: indices of cell containing plated that 
 ///     particle just bounced off of
@@ -262,6 +264,7 @@ double State::check_collisions_loop(Vec jump_unit_vector,
 	    if (cell_indices != bounce_cell_indices ||
 		i != bounce_plated_index) {
 		Vec plated_r = cell[i];
+		plated_r = calculate_minimum_image(plated_r, particle_, L_);
 		double collision_distance = \
 		    get_collision_distance(particle_, plated_r,
 					   jump_unit_vector, jump_length, 
@@ -272,6 +275,19 @@ double State::check_collisions_loop(Vec jump_unit_vector,
 		    store_bounce_plated_index = i;
 		}
 	    }
+	}
+    }
+    // check collision with bottom plane of box
+    double collision_distance = kNoCollision;
+    const int Y = 1;
+    if (particle_[Y] + jump[Y] <= 0) {
+	// could hit bottom plane, 
+	// similar triangles to calculate when particle hits bottom exactly
+	collision_distance = (-particle_[Y] / jump[Y]) * jump.norm();
+	if (collision_distance < minimum_collision_distance) { 
+	    minimum_collision_distance = collision_distance;
+	    // hits bottom plane before anything else, give dummy plated index
+	    store_bounce_plated_index = kBottomCollision;
 	}
     }
     // update tracking of plated that was bounced off of
@@ -303,6 +319,7 @@ double State::check_distances_loop(CellIndices bounce_cell_indices,
 	    if (cell_indices != bounce_cell_indices ||
 		i != bounce_plated_index) {
 		Vec plated_r = cell[i];
+		plated_r = calculate_minimum_image(plated_r, particle_, L_);
 		double distance = (particle_ - plated_r).norm();
 		if (distance < min_distance) {
 		    min_distance = distance;
@@ -323,10 +340,11 @@ void State::stick_particle() {
     (*(*kd_tree_).index).addPoints(new_index, new_index);
     // add newly plated to cells
     cells_.add_to_cells(particle_);
-    // update cluster radius if necessary
-    double newly_plated_radius = particle_.norm();
-    if (newly_plated_radius > radius_) {
-	radius_ = newly_plated_radius;
+    // update cluster height if necessary
+    const int Y = 1;
+    double newly_plated_height = particle_[Y];
+    if (newly_plated_height > height_) {
+	height_ = newly_plated_height;
     }
 }
 
@@ -363,23 +381,53 @@ State::Status State::attempt_bounce(double minimum_collision_distance,
 	particle_ = initial_particle;
     }
     else {
-	const std::vector<Vec>& cell = cells_.get_cell(bounce_cell_indices);
-	Vec plated_r = cell[bounce_plated_index];
-	// unit normal to n-sphere at collision point
-	Vec unit_normal = particle_ - plated_r;
-	unit_normal = unit_normal / unit_normal.norm();
+	const int X = 0;
+	const int Y = 1;
+	const int Z = 2;
+	Vec unit_normal;
+	Vec plated_r;
+	if (bounce_plated_index != kBottomCollision) {
+	    // bouncing off of plated
+	    const std::vector<Vec>& cell = \
+		cells_.get_cell(bounce_cell_indices);
+	    plated_r = calculate_minimum_image(cell[bounce_plated_index],
+					       particle_, L_);
+	    // unit normal to n-sphere at collision point
+	    unit_normal = particle_ - plated_r;
+	    unit_normal = unit_normal / unit_normal.norm();
+	}
+	else {
+	    // bouncing off cell bottom
+	    unit_normal[X] = 0;
+	    unit_normal[Y] = 1;
+	    if (kDims == 3) unit_normal[Z] = 0;
+	}
 	jump = (jump_unit_vector * 
 		(jump_length - minimum_collision_distance));
 	// minus sign since dot product will be negative
 	jump = jump - 2 * jump.dot(unit_normal) * unit_normal;
 	Vec new_particle = particle_ + jump;
-	double new_center_center_distance = (new_particle - plated_r).norm();
-	if (new_center_center_distance <= kDiameter + kSpatialEpsilon) {
-	    // new jump will not get particle out of contact with plated
+
+	// Check new jump is valid
+	if (bounce_plated_index != kBottomCollision) {
+	    // bouncing off plated so check that made it far enough away
+	    double new_center_center_distance = (new_particle - 
+						 plated_r).norm();
+	    if (new_center_center_distance <= kDiameter + kSpatialEpsilon) {
+		// new jump will not get particle out of contact with plated
+		// rejection move instead
+		status = rejection;
+		particle_ = initial_particle;
+		std::cout << "Rejection!" << std::endl;
+	    }
+	}
+	else if (new_particle[Y] == 0) {
+	    // bounced off cell bottom, but new jump will not get particle out
+	    // of contact with bottom
 	    // rejection move instead
 	    status = rejection;
 	    particle_ = initial_particle;
-	    std::cout << "Rejection!" << std::endl;
+	    std::cout << "Bottom rejection!" << std::endl;
 	}
     }
     return status;
@@ -422,13 +470,20 @@ State::Status State::resolve_stick_or_bounce(double p,
     if (minimum_collision_distance == kNoCollision) {
 	// no contact is made, take full jump
 	particle_ += jump;
+	particle_ = enforce_pbcs(particle_, L_);
     }
     else {
 	// collision has occured
 	// put particle in contact with plated
 	particle_ += minimum_collision_distance * jump_unit_vector;
+	particle_ = enforce_pbcs(particle_, L_);
 	if (uniform_(gen_) < p) {
 	    // particle stuck
+	    // if stuck to box bottom, set y coordinate to 0 exactly
+	    if (bounce_plated_index == kBottomCollision) {
+		const int Y = 1;
+		particle_[Y] = 0.0;
+	    }
 	    status = stuck;
 	    stick_particle();
 	}
@@ -566,14 +621,16 @@ void State::take_large_step() {
 /// @param dt: the timestep
 ///
 void State::check_for_regeneration(double dt) {
+    const int Y = 1;
     // need 2 times epsilon, due to epsilon skin around plated
-    double generation_radius = (radius_ + kDiameter + 2 * kSpatialEpsilon);
+    double generation_height = (height_ + kDiameter + 2 * kSpatialEpsilon);
     // only want to regenerate if that will move the particle significantly
     // roughly this is when particle is more than a distance on the order of
     // one jump length ~ sqrt(dt) away from generation radius
-    if (particle_.norm() > generation_radius + std::sqrt(dt)) {
-	particle_ = Sampling::sample_first_hit(particle_, generation_radius,
+    if (particle_[Y] > generation_height + std::sqrt(dt)) {
+	particle_ = Sampling::sample_first_hit(particle_, generation_height,
 					       gen_, uniform_);
+	particle_ = enforce_pbcs(particle_, L_);
     }
 }
 
@@ -613,7 +670,7 @@ int State::check_overlaps(bool verbose) const {
 		    double distance = (r_i - r_j).norm();
 		    if (distance <= threshold) {
 			count += 1;
-			if (verbose) {
+	 		if (verbose) {
 			    std::cout << "r_i:" << std::endl << r_i << 
 				std::endl;
 			    std::cout << "r_j:" << std::endl << r_j << 
@@ -655,6 +712,12 @@ void State::write_xyz() const {
     xyz_file << N_plated << "\n\n";
     // ions                                                                 
     for (int i = 0; i < N_plated; i++) {
+	const int Y = 1;
+	if (plated_cloud_[i][Y] < 0.0) {
+	    std::cout << "r:" << std::endl << plated_cloud_[i] << std::endl;
+	    std::cout << "Found plated with y < 0!" << std::endl;
+	    std::exit(-1);
+	}
 	// plated are type N
 	xyz_file << "N";
 	for (int j = 0; j < kDims; j++) {
@@ -669,4 +732,63 @@ void State::write_xyz() const {
 	xyz_file << " " << i << "\n";
     }
     xyz_file.close();
+}
+
+/// @brief Applies periodic boundary conditions (pbcs). 
+///
+/// Uses periodic boundary conditions in the x (and z in 3d) direction(s) that
+/// is (are) peprendicular to the direction of growth.
+///
+/// The bottom of the box is treated like a particle-plated contact and is 
+/// resolved elsewhere.
+///
+/// @param position: the position vector to wrap back into the simulation box
+/// @param L: length of simulation cell in x (and z for 3d) direction(s) 
+///     perpendicular to growth
+///
+/// @returns new_position: position after pbcs are applied
+///
+Vec enforce_pbcs(Vec position, double L) {
+    Vec new_position = position;
+    const int X = 0;
+    // Need while loops because large steps/regeneration may put particle way
+    // outside box
+    while (new_position[X] < -L / 2) {
+        new_position[X] += L;
+    }
+    while (new_position[X] >= L / 2) {
+        new_position[X] -= L;
+    }
+    if (kDims == 3) {
+	const int Z = 2;
+	while (new_position[Z] < -L / 2) {
+	    new_position[Z] += L;
+	}
+	while (new_position[Z] >= L / 2) {
+	    new_position[Z] -= L;
+	}
+    }
+    return new_position;
+}
+
+/// @brief Transforms plated position vector into the minimum image position
+/// vector with respect to the particle.
+///
+/// @param plated: the position vector of the plated
+/// @param particle: the position vector of the particle
+/// @param L: Length of simulation cell in x (and z for 3d) direction(s) 
+///     perpendicular to growth 
+///
+/// @returns new_plated: minimum image plated position
+///
+Vec calculate_minimum_image(Vec plated, Vec particle, double L) {
+    Vec diff = plated - particle;
+    const int X = 0;
+    const int Z = 2;
+    diff[X] = diff[X] - L * std::trunc(diff[X] / (L / 2));
+    if (kDims == 3) {
+	diff[Z] = diff[Z] - L * std::trunc(diff[Z] / (L / 2));
+    }
+    Vec new_plated = particle + diff;
+    return new_plated;
 }

@@ -16,6 +16,9 @@ int progress_interval = 1000
 # size of cluster to end simulation at
 int cluster_size = 10000
 
+# Simulation cell is line or square of this length in direction perpendicular 
+# to growth 
+float L = 1000
 # expected length of particle movement in 2d or 3d
 # setting this sets timestep implicitly
 float rms_jump_size = 1.0

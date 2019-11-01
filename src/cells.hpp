@@ -29,7 +29,7 @@ public:
     Cells();
     ~Cells() {};
     const CellMap& get_cell_map() const;
-    void set_up_cells(double cell_length);
+    void set_up_cells(double cell_length, double L);
     void add_to_cells(Vec plated);
     CellIndices offset_get_cell_indices(Vec particle, int offset) const;
     CellIndices offset_get_cell_indices(CellIndices central_cell, 
@@ -39,11 +39,17 @@ public:
     CellIndices get_cell_indices(Vec v) const;
 
 private:
+    /// Apply pbcs in x (and z for 3d) direction(s) past this index
+    /// positive and negative are different since positive cells start with 0
+    int max_negative_index_;
+    /// Apply pbcs in x (and z for 3d) direction(s) past this index
+    /// positive and negative are different since positive cells start with 0
+    int max_positive_index_;
     /// Plated are stored in an unordered_map based cells_map_ structure.
     CellMap cell_map_;
-    /// Cells are square/cubic, side length of each square/cube is the max
-    /// length particle can jump in one dt_ plus one diameter + epsilon
-    /// ensures all collisions can be resolved
+    /// Cells are square/cubic, side length of each square/cube is greater 
+    /// than the max length particle can jump in one dt_ plus one diameter + 
+    /// epsilon ensures all collisions can be resolved
     double cell_length_;
     /// Empty cell is returned if indices not in cell map
     std::vector<Vec> empty_cell_;
