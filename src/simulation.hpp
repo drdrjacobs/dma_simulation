@@ -60,6 +60,8 @@ private:
     /// distribution, applies when close to plated, otherwise dynamics are 
     /// exactly Brownian
     double jump_cutoff_;
+    /// Max distance particle can jump in one step
+    double max_jump_length_;
 
     /// The sticking probability at each contact
     double p_;

@@ -43,6 +43,7 @@ Simulation::Simulation() {
 /// @brief Runs simulation starting from current state.
 ///
 void Simulation::run_simulation() { 
+    const int Y = 1;
     // i is number of particle that is being added
     for (int i = state_.get_cluster_size() + 1; i <= cluster_size_; i++) {
 	// tracks whether current particle has stuck
@@ -51,17 +52,17 @@ void Simulation::run_simulation() {
 	while (!stuck) {
 	    // check to see if there are any plated in current cell or 
 	    // surrounding cells
-	    //if (state_.has_neighbors()) {
+	    if (state_.has_neighbors() || 
+		state_.get_particle()[Y] <= (max_jump_length_ + 
+					     kSpatialEpsilon)) {
 		// take a step forward in time since a collision is 
 		// possible
-	    stuck = state_.take_small_step(dt_, jump_cutoff_, p_);
-	    //}
-	    /*
+		stuck = state_.take_small_step(dt_, jump_cutoff_, p_);
+	    }
 	    else {
 		// nearest plated is far away, take large step
 		state_.take_large_step();
 	    }
-	    */
 	    // regenerate particle from first-hit distribution if it gets too 
 	    // far away from cluster
 	    if (!stuck) {
@@ -181,9 +182,9 @@ std::string Simulation::initialize_params() {
 	Sampling::calculate_variance_ratio(jump_cutoff_) << std::endl;
     // cell length must be larger than maximum jump size + diameter + epsilon 
     // so that all collisions can be resolved
-    double max_jump_length = std::sqrt(2 * kDims * dt_) * jump_cutoff_;
-    std::cout << "max_jump_length = " << max_jump_length << std::endl;
-    double min_cell_length = max_jump_length + kDiameter + kSpatialEpsilon;
+    max_jump_length_ = std::sqrt(2 * kDims * dt_) * jump_cutoff_;
+    std::cout << "max_jump_length_ = " << max_jump_length_ << std::endl;
+    double min_cell_length = max_jump_length_ + kDiameter + kSpatialEpsilon;
     std::cout << "min_cell_length = " << min_cell_length << std::endl;
     // the cell length is (L_ / 2) / m where m is the largest whole number 
     // such that (L_ / 2) / m > min_cell_length

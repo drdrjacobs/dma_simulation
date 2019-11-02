@@ -280,7 +280,7 @@ double State::check_collisions_loop(Vec jump_unit_vector,
 	    }
 	}
     }
-    // check collision with bottom plane of box
+    // check collision with bottom plane of box, plane is at y = -1
     double collision_distance = kNoCollision;
     const int Y = 1;
     if (particle_[Y] + jump[Y] <= 0) {
@@ -482,7 +482,7 @@ State::Status State::resolve_stick_or_bounce(double p,
 	particle_ = enforce_pbcs(particle_, L_);
 	if (uniform_(gen_) < p) {
 	    // particle stuck
-	    // if stuck to box bottom, set y coordinate to 0 exactly
+	    // if stuck to box bottom, y = -1 plane, set y to 0 exactly
 	    if (bounce_plated_index == kBottomCollision) {
 		const int Y = 1;
 		particle_[Y] = 0.0;
@@ -609,13 +609,41 @@ double State::find_nearest_neighbor() const {
 /// will just barely avoid a collision.
 ///
 void State::take_large_step() {
-    double squared_distance = find_nearest_neighbor();
+    const int X = 0;
+    const int Y = 1;
+    const int Z = 2;
+    Vec save_particle = particle_;
+    double distance;
+    // bottom of box, y = 0, is potential contact
+    double min_distance = particle_[Y];
+    // Flip particle across pbcs and find nearest again
+    // in 3d have to flip to each possible periodic image
+    for (int i = 0; i < 2; i++) {
+	particle_[X] = (save_particle[X] - 
+			i * std::copysign(L_, save_particle[X]));
+	if (kDims == 3) {
+	    for (int j = 0; j < 2; j++) {
+		particle_[Z] = (save_particle[Z] - 
+				j * std::copysign(L_, save_particle[Z]));
+		distance = std::sqrt(find_nearest_neighbor()) - kDiameter;
+		if (distance < min_distance) {
+		    min_distance = distance;
+		}
+	    }
+	}
+	else {
+	    distance = std::sqrt(find_nearest_neighbor()) - kDiameter;
+	    if (distance < min_distance) {
+		min_distance = distance;
+	    }
+	}
+    }
     // need 2 times epsilon, due to epsilon skin around particles   
-    double jump_length = (std::sqrt(squared_distance) - kDiameter 
-			  - 2 * kSpatialEpsilon);
+    double jump_length = min_distance - 2 * kSpatialEpsilon;
     Vec jump = Sampling::generate_point_on_sphere(jump_length,
 						  gen_, uniform_);
     particle_ += jump;
+    particle_ = enforce_pbcs(particle_, L_);
 }
 
 /// @brief Checks to see if particle is too far from cluster and regenerates it
