@@ -281,6 +281,28 @@ void test_resolve_jump_bouncing_2d() {
 	    answer = particle;
 	    REQUIRE(state.get_particle().isApprox(answer, epsilon));
 	}
+	SECTION( "test other rejection" + tag) {
+	    // This occurs when bounce happens too close border of 
+	    // another plated
+	    particle = offset;
+	    state.set_particle(particle);
+	    state.stick_particle();
+
+	    particle = offset;
+	    particle(X) = offset(X) - 2 - kSpatialEpsilon / 2.0;
+	    particle(Y) = offset(Y) + 2;
+	    state.set_particle(particle);
+	    state.stick_particle();
+
+	    particle(X) = offset(X) + 1;
+	    particle(Y) = offset(Y) + 3;
+	    state.set_particle(particle);
+	    jump << -3, -3;
+	    bool stuck = state.resolve_jump(jump, p);
+	    REQUIRE(!stuck);
+	    answer = particle;
+	    REQUIRE(state.get_particle().isApprox(answer, epsilon));
+	}
     }
 }
 
@@ -401,6 +423,29 @@ void test_resolve_jump_bouncing_3d() {
 	    state.set_particle(particle);
 	    jump << -1, -1, -1;
 	    jump = std::sqrt(3) * (jump / jump.norm());
+	    bool stuck = state.resolve_jump(jump, p);
+	    REQUIRE(!stuck);
+	    answer = particle;
+	    REQUIRE(state.get_particle().isApprox(answer, epsilon));
+	}
+	SECTION( "test other rejection" + tag) {
+	    // This occurs when bounce happens too close border of 
+	    // another plated
+	    particle = offset;
+	    state.set_particle(particle);
+	    state.stick_particle();
+
+	    particle = offset;
+	    particle(X) = offset(X) - 2 - kSpatialEpsilon / 2.0;
+	    particle(Y) = offset(Y) + 2;
+	    state.set_particle(particle);
+	    state.stick_particle();
+
+	    particle(X) = offset(X) + 1;
+	    particle(Y) = offset(Y) + 3;
+	    particle(Z) = offset(Z) + 1;
+	    state.set_particle(particle);
+	    jump << -3, -3, -3;
 	    bool stuck = state.resolve_jump(jump, p);
 	    REQUIRE(!stuck);
 	    answer = particle;
