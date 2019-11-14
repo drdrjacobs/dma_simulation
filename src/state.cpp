@@ -24,6 +24,14 @@ const int State::kNoCollision = std::numeric_limits<int>::max();
 /// cell
 const int State::kBottomCollision = std::numeric_limits<int>::max() - 1;
 
+/// @brief Sets particle position.
+///
+/// @param new_particle: new position
+///
+void State::set_particle(Vec new_particle) {
+    particle_ = enforce_pbcs(new_particle, L_);
+}
+
 /// @brief Sets up new state with single plated at origin.
 ///
 /// @param L: Length of simulation cell in x (and z for 3d) directions 
@@ -587,20 +595,48 @@ bool State::take_small_step(double dt, double jump_cutoff, double p) {
     return stuck;
 }
 
-
-/// @brief Finds the nearest neighbor plated of particle.
+/// @brief Finds the nearest neighbor plated of particle respecting pbcs.
 ///
 /// Uses nanoflann implementation.
 ///
-/// @returns squared_distance: the squared distance between particle and 
-///     nearest neighbor plated
+/// @returns distance: the distance between particle and nearest neighbor 
+///     plated
 ///
 double State::find_nearest_neighbor() const {
     const size_t k = 1;
     size_t index;
     double squared_distance;
-    (*kd_tree_).query(particle_.data(), k, &index, &squared_distance);
-    return squared_distance;
+    double distance;
+    double min_distance = std::numeric_limits<double>::max();
+    Vec tmp_particle = particle_;
+    const int X = 0;
+    const int Z = 2;
+    // Flip particle across pbcs and find nearest neighbor
+    // in 3d have to flip to each possible periodic image
+    for (int i = 0; i < 2; i++) {
+	tmp_particle[X] = (particle_[X] - i * std::copysign(L_, particle_[X]));
+	if (kDims == 3) {
+	    for (int j = 0; j < 2; j++) {
+		tmp_particle[Z] = (particle_[Z] - 
+				   j * std::copysign(L_, particle_[Z]));
+		(*kd_tree_).query(tmp_particle.data(), k, &index, 
+				  &squared_distance);
+		distance = std::sqrt(squared_distance);
+		if (distance < min_distance) {
+		    min_distance = distance;
+		}
+	    }
+	}
+	else {
+	    (*kd_tree_).query(tmp_particle.data(), k, &index, 
+			      &squared_distance);
+	    distance = std::sqrt(squared_distance);
+	    if (distance < min_distance) {
+		min_distance = distance;
+	    }
+	}
+    }
+    return min_distance;
 }
 
 /// @brief takes large (exact dynamics) step forward.
@@ -609,37 +645,16 @@ double State::find_nearest_neighbor() const {
 /// will just barely avoid a collision.
 ///
 void State::take_large_step() {
-    const int X = 0;
     const int Y = 1;
-    const int Z = 2;
-    Vec save_particle = particle_;
-    double distance;
-    // bottom of box, y = 0, is potential contact
-    double min_distance = particle_[Y];
-    // Flip particle across pbcs and find nearest again
-    // in 3d have to flip to each possible periodic image
-    for (int i = 0; i < 2; i++) {
-	particle_[X] = (save_particle[X] - 
-			i * std::copysign(L_, save_particle[X]));
-	if (kDims == 3) {
-	    for (int j = 0; j < 2; j++) {
-		particle_[Z] = (save_particle[Z] - 
-				j * std::copysign(L_, save_particle[Z]));
-		distance = std::sqrt(find_nearest_neighbor()) - kDiameter;
-		if (distance < min_distance) {
-		    min_distance = distance;
-		}
-	    }
-	}
-	else {
-	    distance = std::sqrt(find_nearest_neighbor()) - kDiameter;
-	    if (distance < min_distance) {
-		min_distance = distance;
-	    }
-	}
+    // subtract off diameter to find distance particle can move without
+    // creating overlap
+    double min_move_distance = find_nearest_neighbor() - kDiameter;
+    // bottom of box, when particle y = 0, is potential contact
+    if (particle_[Y] < min_move_distance) {
+	min_move_distance = particle_[Y];
     }
     // need 2 times epsilon, due to epsilon skin around particles   
-    double jump_length = min_distance - 2 * kSpatialEpsilon;
+    double jump_length = min_move_distance - 2 * kSpatialEpsilon;
     Vec jump = Sampling::generate_point_on_sphere(jump_length,
 						  gen_, uniform_);
     particle_ += jump;
@@ -698,6 +713,8 @@ int State::check_overlaps(bool verbose) const {
 		// for each plated in other cell
 		for (size_t j = start; j < other_cell.size(); j++) {
 		    Vec r_j = other_cell.at(j);
+		    // calculate minimum image distance
+		    r_j = calculate_minimum_image(r_j, r_i, L_);
 		    double distance = (r_i - r_j).norm();
 		    if (distance <= threshold) {
 			count += 1;

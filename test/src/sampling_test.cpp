@@ -7,6 +7,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 
 #include <boost/filesystem.hpp>
 
@@ -62,6 +63,75 @@ TEST_CASE("test generate_point_on_sphere", "[sampling]") {
     file.close();
 }
 
+TEST_CASE("test generate_point_on_plane", "[sampling]") {
+    int seed = 0;
+    std::mt19937 gen(seed);
+    Uniform uniform(0.0, 1.0);
+    int samples;
+    std::vector<double> heights = {10, 4.5, 20};
+    std::vector<double> Ls = {3.0, 8.5, 16.5};
+    const int Y = 1;
+    for (auto height : heights) {
+	for (auto L : Ls) {
+	    std::string tag = (", height = " + std::to_string(height) + 
+			       ", L = "  + std::to_string(L));
+	    SECTION( "test height is what was specified" + tag) {
+		double epsilon = 1e-8;
+		Approx approx_zero = Approx(0).margin(epsilon);
+		samples = 1000;
+		bool error = false;
+
+		for (int i = 0; i < samples; i++) {
+		    Vec sample = Sampling::generate_point_on_plane(height, L,
+								   gen, 
+								   uniform);
+		    if (!(sample(Y) - height == approx_zero)) {
+			error = true;
+		    }
+		    for (int j = 0; j < kDims; j++) {
+			if (j != Y && (sample(j) < -L / 2.0 || 
+				       sample(j) >= L / 2.0)) {
+			    error = true;
+			}
+		    }
+		}
+		REQUIRE(!error);
+	    }
+	}
+    }
+
+    // spit out samples to be analyzed with python
+    std::ofstream file;
+    std::string dir = "test_distributions/"; 
+    if (!boost::filesystem::is_directory(dir)) {
+	std::cout << "Can only run sampling tests from path test/" << 
+	    std::endl;
+	exit(-1);
+    }
+    file << std::scientific << std::setprecision(12);
+    heights = {10, 4.5};
+    Ls = {3.0, 8.5};
+    for (auto height : heights) {
+	for (auto L : Ls) {
+	    samples = 100000;
+	    std::string path = (dir + "/generate_point_on_plane_" + 
+				std::to_string(kDims) + "d_h_" + 
+				std::to_string(height) + "_L_" + 
+				std::to_string(L) + ".txt");
+	    file.open(path);
+	    for (int i = 0; i < samples; i++) {
+		Vec sample = Sampling::generate_point_on_plane(height, L, 
+							       gen, uniform);
+		for (int j = 0; j < kDims; j++) {
+		    file << sample(j) << " ";
+		}
+		file << std::endl;
+	    }
+	    file.close();
+	}
+    }
+}
+
 TEST_CASE("test generate_jump", "[sampling]") {
     int seed = 0;
     std::mt19937 gen(seed);
@@ -84,8 +154,8 @@ TEST_CASE("test generate_jump", "[sampling]") {
 		    }
 		}
 	    }
+	    REQUIRE(!error);
 	}
-	REQUIRE(!error);
 
 	// spit out samples to be analyzed with python
 	samples = 100000;
@@ -119,108 +189,80 @@ TEST_CASE("test sample_first_hit", "[sampling]") {
     std::mt19937 gen(seed);
     Uniform uniform(0.0, 1.0);
     int samples;
-    std::vector<double> radii = {0.5, 10.0, 17.3};
-    Vec particle;
-    for (auto radius : radii) {
-	std::string tag = ", radius = " + std::to_string(radius);
-	SECTION( "test radius is what was specified" + tag) {
-	    for (int i = 0; i < kDims; i++) {
-		particle(i) = std::pow(-1, i) * radius * i;
-	    }
-	    double epsilon = 1e-8;
-	    Approx approx_zero = Approx(0).margin(epsilon);
-	    samples = 1000;
-	    bool error = false;
-	    for (int i = 0; i < samples; i++) {
-		Vec sample = Sampling::sample_first_hit(particle, radius, 
-							gen, uniform);
-		if (!(sample.norm() - radius == approx_zero)) {
-		    error = true;
+    std::vector<Vec> particles;
+    Vec v;
+    if (kDims == 2) {
+	v << 2, 2;
+	particles.push_back(v);
+	v << -10.5, 11.5;
+	particles.push_back(v);
+    }
+    else {
+	v << 2, 2, -6.7;
+	particles.push_back(v);
+	v << -10.5, 11.5, 22.0;
+	particles.push_back(v);
+    }
+    std::vector<double> height_fractions = {0.2, 0.5, 0.9};
+    const int X = 0;
+    const int Y = 1;
+    for (auto particle : particles) {
+	for (auto height_fraction : height_fractions) {
+	    std::string tag = (", particle = " + 
+			       std::to_string(particle(X)) + ", " + 
+			       std::to_string(particle(Y)) + 
+			       ", height_fraction = " + 
+			       std::to_string(height_fraction));
+	    SECTION( "test height is what was specified" + tag) {
+		double epsilon = 1e-8;
+		Approx approx_zero = Approx(0).margin(epsilon);
+		samples = 1000;
+		bool error = false;
+		double height = height_fraction * particle(Y);
+		for (int i = 0; i < samples; i++) {
+		    Vec sample = Sampling::sample_first_hit(particle, 
+							    height, 
+							    gen, uniform);
+		    if (!(sample(Y) - height == approx_zero)) {
+			error = true;
+		    }
 		}
+		REQUIRE(!error);
 	    }
-	    REQUIRE(!error);
 	}
     }
     // spit out samples to be analyzed with python
-    samples = 100000;
-    double radius = 1.0;
     std::ofstream file;
-    for (int option = 0; option < 4; option++) {
-	std::string path = ("test_distributions/sample_first_hit_" + 
-			    std::to_string(option) + "_" + 
-			    std::to_string(kDims) + "d.txt");
-	file.open(path);
-	double alpha = 2;
-	if (option > 1) {
-	    alpha = 4;
-	}
-	if (option % 2 == 0) {
-	    for (int i = 0; i < kDims; i++) {
-		particle(i) = 1;
-	    }
-	}
-	else {
-	    for (int i = 0; i < kDims; i++) {
-		particle(i) = std::pow(-1, i + 1);
-	    }
-	}
-	particle = alpha * particle / particle.norm();
-	file << "particle = ";
-	for (int i = 0; i < kDims; i++) {
-	    file << particle(i) << " ";
-	}
-	file << std::endl;
-	for (int i = 0; i < samples; i++) {
-	    Vec sample = Sampling::sample_first_hit(particle, radius, 
-						    gen, uniform);
-	    for (int j = 0; j < kDims; j++) {
-		file << sample(j) << " ";
-	    }
-	    file << std::endl;
-	}
-	file.close();
+    std::string dir = "test_distributions/"; 
+    if (!boost::filesystem::is_directory(dir)) {
+	std::cout << "Can only run sampling tests from path test/" << 
+	    std::endl;
+	exit(-1);
     }
-}
-
-TEST_CASE("test first_hit_3d_rotation", "[sampling]") {
-    if (kDims == 3) {
-	Vec hit_vector;
-	Vec particle;
-	Vec answer;
-	double epsilon = 1e-8;
-	SECTION( "test no rotation if pointing along same axis") {
-	    hit_vector << 3, 0, 3;
-	    particle << 0, 0, 5;
-	    Vec result = Sampling::first_hit_3d_rotation(hit_vector, particle);
-	    REQUIRE(result.cwiseEqual(hit_vector).count() == kDims);
-	}
-	SECTION( "test no rotation if almost pointing along same axis") {
-	    hit_vector << 3, 0, 3;
-	    particle << epsilon, epsilon, 5;
-	    Vec result = Sampling::first_hit_3d_rotation(hit_vector, particle);
-	    REQUIRE(result.cwiseEqual(hit_vector).count() == kDims);
-	}
-	SECTION( "test rotation") {
-	    hit_vector << 1, 2, 3;
-	    particle << 5, 0, 0;
-	    answer << 3, 2, -1;
-	    Vec result = Sampling::first_hit_3d_rotation(hit_vector, particle);
-	    REQUIRE(result.isApprox(answer, epsilon));
-	}
-	SECTION( "test reflection across xy plane if pointing along -z axis") {
-	    hit_vector << 3, 0, 3;
-	    answer << 3, 0, -3;
-	    particle << 0, 0, -5;
-	    Vec result = Sampling::first_hit_3d_rotation(hit_vector, particle);
-	    REQUIRE(result.cwiseEqual(answer).count() == kDims);
-	}
-	SECTION( "test reflection across xy plane if almost pointing along "
-		 "-z axis") {
-	    hit_vector << 3, 0, 3;
-	    answer << 3, 0, -3;
-	    particle << epsilon, epsilon, -5;
-	    Vec result = Sampling::first_hit_3d_rotation(hit_vector, particle);
-	    REQUIRE(result.cwiseEqual(answer).count() == kDims);
+    file << std::scientific << std::setprecision(12);
+    int count = 0;
+    for (auto particle : particles) {
+	for (auto height_fraction : height_fractions) {
+	    double height = height_fraction * particle(Y);
+	    samples = 100000;
+	    std::string path = (dir + "/sample_first_hit_" + 
+				std::to_string(kDims) + "d_" + 
+				std::to_string(count) + ".txt");
+	    file.open(path);
+	    file << "# height = " << height << std::endl;
+	    file << "# partitle = ";
+	    for (int i = 0; i < kDims; i++) file << particle(i) << ", ";
+	    file << std::endl;
+	    for (int i = 0; i < samples; i++) {
+		Vec sample = Sampling::sample_first_hit(particle, height, 
+							gen, uniform);
+		for (int j = 0; j < kDims; j++) {
+		    file << sample(j) << " ";
+		}
+		file << std::endl;
+	    }
+	    file.close();
+	    count++;
 	}
     }
 }

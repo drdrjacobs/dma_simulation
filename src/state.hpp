@@ -61,17 +61,13 @@ public:
     /// @returns particle: the particle position
     ///
     Vec get_particle() {return particle_;}
-    /// @brief Sets particle position.
-    ///
-    /// @param new_particle: new position
-    ///
-    void set_particle(Vec new_particle) {particle_ = new_particle;}
     /// @brief Gets plated_cloud.
     ///
     /// @param returns plated cloud: vector tracking all plated
     ///
     std::vector<Vec>& get_plated_cloud() {return plated_cloud_;}
 
+    void set_particle(Vec new_particle);
     void set_up_new_state(double L, double cell_length, int max_leaf_size, 
 			  int seed, bool rejection_only = false);
     void load_state(double L, double cell_length, int max_leaf_size, 

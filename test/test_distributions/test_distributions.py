@@ -50,6 +50,59 @@ plt.ylabel(r"$P(\theta)$")
 plt.legend()
 plt.show()
 
+files = glob.glob("generate_point_on_plane_2d_*.txt")
+files = sorted(files)
+for file in files:
+    data = np.loadtxt(file)
+    h = float(file.split("_h_")[-1].split("_")[0])
+    L = float(file.split("_L_")[-1][:-4])
+    plt.hist(data[:, 0] / (L / 2.0), density = True, bins = 25, 
+             range = (-1.0, 1.0), histtype = "step",
+             label = "$h = " + str(h) + ", L = " + str(L) + "$")
+    if not (data[:, 1] == h).all():
+        print("Height failed!")
+        exit()
+    if (data[:, 0] < -L / 2.0).any():
+        print("L failed!")
+        exit()
+    if (data[:, 0] >= L / 2.0).any():
+        print("L failed!")
+        exit()
+plt.plot([-1.0, 1.0], np.array([0.5, 0.5]), label = "Uniform")
+plt.title("generate point on plane 2d")
+plt.xlabel(r"$x / (L / 2)$")
+plt.ylabel(r"$P(x / (L / 2))$")
+plt.legend(loc = "lower center", frameon = False)
+plt.show()
+
+files = glob.glob("generate_point_on_plane_3d_*.txt")
+files = sorted(files)
+for file in files:
+    data = np.loadtxt(file)
+    h = float(file.split("_h_")[-1].split("_")[0])
+    L = float(file.split("_L_")[-1][:-4])
+    if not (data[:, 1] == h).all():
+        print("Height failed!")
+        exit()
+    symbols = ["x", "y", "z"]
+    for i in [0, 2]:
+        plt.hist(data[:, i] / (L / 2.0), density = True, bins = 25, 
+                 range = (-1.0, 1.0), histtype = "step",
+                 label = ("$h = " + str(h) + ", L = " + str(L) + ", " + 
+                          symbols[i] + "$"))
+        if (data[:, i] < -L / 2.0).any():
+            print("L failed!")
+            exit()
+        if (data[:, i] >= L / 2.0).any():
+            print("L failed!")
+            exit()
+plt.plot([-1.0, 1.0], np.array([0.5, 0.5]), label = "Uniform")
+plt.title("generate point on plane 3d")
+plt.xlabel(r"$x / (L / 2)$")
+plt.ylabel(r"$P(x / (L / 2))$")
+plt.legend(loc = "lower center", frameon = False)
+plt.show()    
+
 files = glob.glob("generate_jump_*.txt")
 files = sorted(files)
 for file in files:
@@ -77,109 +130,70 @@ for file in files:
     plt.legend()
     plt.show()
 
-files = glob.glob("sample_first_hit_*_2d.txt")
+files = glob.glob("sample_first_hit_2d_*.txt")
 files = sorted(files)
-alphas = []
 for i, file in enumerate(files):
     with open(file) as f:
-        line = f.readline()
-        particle_x = float(line.split()[-2])
-        particle_y = float(line.split()[-1])
-    particle = np.array([particle_x, particle_y])
-    alpha = np.linalg.norm(particle)
-    alphas.append(alpha)
+        height = float(f.readline().split("=")[-1])
+        particle = f.readline().split("=")[-1].split(",")[:-1]
+        particle = np.array([float(_) for _ in particle])
+    data = np.loadtxt(file)
+    difference = particle[1] - height
+    data = (data - particle) / difference
     X = 0
     Y = 1
-    particle_angle = np.arctan2(particle[Y], particle[X])
-    label = "particle = " + str(particle[X]) + ", " + str(particle[Y])
-    data = np.loadtxt(file, skiprows = 1)
-    # y coord is first
-    angles = [np.arctan2(_[1], _[0]) - particle_angle for _ in data] 
-    angles = np.array(angles)
-    angles[angles < -np.pi] += 2 * np.pi
-    plt.hist(angles, density = True, bins = 50, 
-             range = (-np.pi, np.pi), label = label, histtype = "step")
-alphas = set(alphas)
-for alpha in alphas:
-    xs = np.linspace(-np.pi, np.pi, 100)
-    ys = (alpha**2 - 1) / (alpha**2 - 2 * alpha * np.cos(xs) + 1) 
-    ys = ys / (2 * np.pi)
-    plt.plot(xs, ys, label = r"pdf, $\alpha = " + "{:.2f}".format(alpha) + "$")
-plt.xlabel(r"$\theta$")
-plt.ylabel(r"$P(\theta)$")
-plt.legend(loc = "upper left")
-plt.title(r"sample\_first\_hit 2d, $N = " + str(len(angles)) + "$")
+    label = ("height = $" + str(height) + "$, particle = $" + 
+             str(particle[X]) + ", " + str(particle[Y]) + "$")
+    plt.hist(data[:, 0], density = True, bins = 100, range = (-10, 10),
+                 histtype = "step",
+                 label = label)
+# plot analytical
+xs = np.linspace(-10, 10, 1000)
+ys =  1.0 / (2.0 * (xs**2 + 1.0)**(3.0/2.0))
+plt.plot(xs, ys, label = "pdf", zorder = -1)
+plt.xlabel(r"$x$")
+plt.ylabel(r"$P(x)$")
+plt.legend(loc = "upper left", frameon = False)
+plt.title(r"sample first hit 2d")
 plt.show()
 
-# projects v into plane containing phi_vector perpendicular to particle 
-# and gets angle (phi) relative to phi_vector
-def get_phi(particle, phi_vector, v):
-    particle = particle / np.linalg.norm(particle)
-    v = v - np.dot(v, particle) * particle
-    v = v / np.linalg.norm(v)
-    x = np.dot(v, phi_vector)
-    # taking dot product with y axis defined by cross product
-    y = np.dot(v - np.dot(v, phi_vector) * phi_vector, 
-               np.cross(particle, phi_vector))
-    phi = np.arctan2(y, x)
-    return phi
-
-files = glob.glob("sample_first_hit_*_3d.txt")
+files = glob.glob("sample_first_hit_3d_*.txt")
 files = sorted(files)
-alphas = []
 for i, file in enumerate(files):
     with open(file) as f:
-        line = f.readline()
-        particle_x = float(line.split()[-3])
-        particle_y = float(line.split()[-2])
-        particle_z = float(line.split()[-1])
-    particle = np.array([particle_x, particle_y, particle_z])
-    alpha = np.linalg.norm(particle)
-    alphas.append(alpha)
+        height = float(f.readline().split("=")[-1])
+        particle = f.readline().split("=")[-1].split(",")[:-1]
+        particle = np.array([float(_) for _ in particle])
+    data = np.loadtxt(file)
+    difference = particle[1] - height
+    data = (data - particle) / difference
+    rs = np.sqrt(data[:, 0]**2 + data[:, 2]**2)
     X = 0
     Y = 1
     Z = 2
-    # need to define phi, generate vector perpendicular to parti
-    tmp = np.array([0, 0, 1])
-    if np.abs(np.dot(tmp, particle / np.linalg.norm(particle))) < 1e-3:
-        raise Exception("particle cannot point along z axis for these tests!")
-    data = np.loadtxt(file, skiprows = 1)
-    data = [_ / np.linalg.norm(_) for _ in data]
-    # define phi relative to this vector
-    phi_vector = np.cross(particle, tmp)
-    phi_vector = phi_vector / np.linalg.norm(phi_vector)
-    phis = [get_phi(particle, phi_vector, _) for _ in data]
-    label = ("particle = " + str(particle[X]) + ", " + str(particle[Y]) + 
-             ", " + str(particle[Z]))
+    label = ("height = $" + str(height) + "$, particle = $" + 
+             str(particle[X]) + ", " + str(particle[Y]) + ", " + 
+             str(particle[Z]) + "$")
+    plt.figure(0)
+    plt.hist(rs, density = True, bins = 100, range = (0, 10),
+             histtype = "step", label = label)
     plt.figure(1)
-    plt.hist(phis, density = True, bins = 50, range = (-np.pi, np.pi), 
-             label = label, histtype = "step")
-    plt.figure(2)
-    cos_thetas = [np.dot(particle / np.linalg.norm(particle), _) for _ in data]
-    cos_thetas = np.array(cos_thetas)
-    plt.hist(cos_thetas, density = True, bins = 50, range = (-1, 1), 
-             label = label, histtype = "step")
+    phis = np.arctan2(data[:, Z], data[:, X])
+    plt.hist(phis, density = True, bins = 40, range = (-np.pi, np.pi),
+                 histtype = "step", label = label)
+# plot analytical
+plt.figure(0)
+xs = np.linspace(0.0, 10, 1000)
+ys =  1.0 / ((xs**2 + 1.0)**(3.0/2.0))
+plt.plot(xs, ys, zorder = -1, label = "pdf")
+plt.xlabel(r"$r$")
+plt.ylabel(r"$P(r)$")
+plt.legend(loc = "upper right", frameon = False)
+plt.title(r"sample first hit 3d")
 plt.figure(1)
 plt.plot([-np.pi, np.pi], np.array([1, 1]) / (2 * np.pi), label = "Uniform")
 plt.xlabel(r"$\phi$")
 plt.ylabel(r"$P(\phi)$")
-plt.legend(loc = "best")
-plt.title(r"sample\_first\_hit 3d, $N = " + str(len(phis)) + "$")
-plt.figure(2)
-alphas = set(alphas)
-for alpha in alphas:
-    # analytical pdf
-    xs = np.linspace(-1, 1, 100)
-    ys = (alpha / 2 * (alpha**2 - 1) / 
-          (alpha**2 - 2 * alpha * xs + 1)**(3.0 / 2.0))
-    # need to add uniform component back in if particle escapes
-    ys = 1 / alpha * ys + (1 - 1 / alpha) * (1.0 / 2.0)
-    plt.plot(xs, ys, label = r"pdf, $\alpha = " + "{:.2f}".format(alpha) + "$")
-#plt.plot([-np.pi, np.pi], np.array([1, 1]) / (2 * np.pi), label = "Uniform")
-plt.xlabel(r"$\cos(\theta)$")
-plt.ylabel(r"$P(\cos(\theta))$")
-plt.legend(loc = "best")
-plt.title(r"sample\_first\_hit 3d, $N = " + str(len(phis)) + "$")
+plt.legend(loc = "lower center", frameon = False)
+plt.title(r"sample first hit 3d")
 plt.show()
-
-    
