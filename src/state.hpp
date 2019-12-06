@@ -63,9 +63,14 @@ public:
     Vec get_particle() {return particle_;}
     /// @brief Gets plated_cloud.
     ///
-    /// @param returns plated cloud: vector tracking all plated
+    /// @returns plated_cloud: vector tracking all plated
     ///
     std::vector<Vec>& get_plated_cloud() {return plated_cloud_;}
+    /// @brief Gets height.
+    ///
+    /// @returns height: max Y coordinate of plated in cluster
+    ///
+    double get_height() {return height_;}
 
     void set_particle(Vec new_particle);
     void set_up_new_state(double L, double cell_length, int max_leaf_size, 

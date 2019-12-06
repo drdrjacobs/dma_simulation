@@ -144,17 +144,46 @@ for i, file in enumerate(files):
     Y = 1
     label = ("height = $" + str(height) + "$, particle = $" + 
              str(particle[X]) + ", " + str(particle[Y]) + "$")
-    plt.hist(data[:, 0], density = True, bins = 100, range = (-10, 10),
-                 histtype = "step",
-                 label = label)
-# plot analytical
-xs = np.linspace(-10, 10, 1000)
-ys =  1.0 / (2.0 * (xs**2 + 1.0)**(3.0/2.0))
-plt.plot(xs, ys, label = "pdf", zorder = -1)
-plt.xlabel(r"$x$")
-plt.ylabel(r"$P(x)$")
+    probabilities = np.linspace(0.0, 1.0, 41)[1:-1]
+    data_quantiles = np.quantile(data[:, 0], probabilities)
+    theory_quantiles = np.tan(np.pi * (probabilities - 0.5))
+    plt.figure(0)
+    plt.plot(data_quantiles, theory_quantiles, label = label, marker = "o", 
+             linestyle = "")
+    plt.figure(1)
+    quantiles = np.linspace(-15.0, 15.0, 300)
+    data_probabilities = np.array([np.sum(data[:, 0] <= _) / data[:, 0].size
+                                   for _ in quantiles])
+    theory_probabilities = 0.5 + np.arctan(quantiles) / np.pi
+    plt.plot(data_probabilities, theory_probabilities, label = label,
+             marker = "o", linestyle = "")
+    plt.figure(2)
+    sorted_xs = np.array(sorted(data[:, 0]))
+    ecdf = (np.arange(sorted_xs.size) + 1.0) / sorted_xs.size
+    plt.plot(sorted_xs, ecdf, marker = ".", linestyle = "")
+plt.figure(0)
+xs = np.linspace(-15, 15, 1000)
+plt.plot(xs, xs, zorder = -1, linestyle = "--", color = "k", 
+         label = "Slope = 1")
+plt.xlabel(r"Data Quantiles")
+plt.ylabel(r"Theory Quantiles")
 plt.legend(loc = "upper left", frameon = False)
 plt.title(r"sample first hit 2d")
+plt.figure(1)
+xs = np.linspace(0.0, 1.0, 1000)
+plt.plot(xs, xs, zorder = -1, linestyle = "--", color = "k", 
+         label = "Slope = 1")
+plt.xlabel(r"Data Probalilities")
+plt.ylabel(r"Theory Probabilities")
+plt.title(r"sample first hit 2d")
+plt.figure(2)
+xs = np.linspace(-15.0, 15.0, 1000)
+plt.plot(xs, 0.5 + np.arctan(xs) / np.pi, zorder = -1, linestyle = "--", 
+         color = "k")
+plt.xlabel(r"$x$")
+plt.ylabel(r"$\mathrm{CDF}(x)$")
+plt.title(r"sample first hit 2d")
+plt.xlim([-15.0, 15.0])
 plt.show()
 
 files = glob.glob("sample_first_hit_3d_*.txt")

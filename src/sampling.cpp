@@ -147,7 +147,8 @@ double Sampling::calculate_variance_ratio(double jump_cutoff) {
 /// See first-hit_distributions.pdf that derives these formulas.
 ///
 /// @param particle: the position vector of the particle
-/// @param height: the height of the line or plane that particle will hit
+/// @param height: the height (y coordinate) of the line or plane that 
+///     particle will hit
 /// @param[out] gen: random number generator
 /// @param[out] uniform: random number uniform distribution over [0, 1)
 ///
@@ -161,27 +162,21 @@ Vec Sampling::sample_first_hit(Vec particle, double height,
     const int Z = 2;
 
     double height_above = particle[Y] - height;
+    result[Y] = height;
     // inverse transform method
     double cdf = uniform(gen);    
-    double nondimensional_radius = cdf / std::sqrt(1 - std::pow(cdf, 2));
-    double radius = nondimensional_radius * height_above;
-
-    result[Y] = height;
     if (kDims == 2) {
-	// particle equally likely to hit at current_x + radius or
-	// current_x - radius
-	if (uniform(gen) < 0.5) {
-	    result[X] = particle[X] + radius;
-	}
-	else {
-	    result[X] = particle[X] - radius;
-	}
+	double nondimensional_delta_x = std::tan(M_PI * (cdf - 0.5));
+	double delta_x = nondimensional_delta_x * height_above;
+	result[X] = particle[X] + delta_x;
     }
     else if (kDims == 3) {
-	// azimuthal angle sampled uniformly
-	double psi = 2 * M_PI * uniform(gen);
-	result[X] = particle[X] + std::cos(psi) * radius;
-	result[Z] = particle[Z] + std::sin(psi) * radius;
+	double nondimensional_radius = cdf / std::sqrt(1 - std::pow(cdf, 2));
+	double radius = nondimensional_radius * height_above;
+	// polar angle sampled uniformly
+	double theta = 2 * M_PI * uniform(gen);
+	result[X] = particle[X] + std::cos(theta) * radius;
+	result[Z] = particle[Z] + std::sin(theta) * radius;
     }
     return result;
 }
