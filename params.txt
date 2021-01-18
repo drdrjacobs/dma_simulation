@@ -19,6 +19,8 @@ int cluster_size = 10000
 # Simulation cell is line or square of this length in direction perpendicular 
 # to growth 
 float L = 1000
+# optional, will end simulation when reaches this height
+# float max_height = 400
 # expected length of particle movement in 2d or 3d
 # setting this sets timestep implicitly
 float rms_jump_size = 1.0

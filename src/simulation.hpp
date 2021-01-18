@@ -67,6 +67,9 @@ private:
     double p_;
     /// size of the cluster to generate
     int cluster_size_;
+    /// Simulation will end as soon as height >= this value
+    /// Set to zero by default and has no effect unless set in params
+    double max_height_;
 
     // Essential IO
     

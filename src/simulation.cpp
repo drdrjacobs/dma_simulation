@@ -45,7 +45,10 @@ Simulation::Simulation() {
 void Simulation::run_simulation() { 
     const int Y = 1;
     // i is number of particle that is being added
-    for (int i = state_.get_cluster_size() + 1; i <= cluster_size_; i++) {
+    int i = state_.get_cluster_size() + 1;
+    // max_height_ == 0 implies parameter was not given, run as normal
+    while (i <= cluster_size_ && 
+	   (max_height_ == 0 || state_.get_height() <= max_height_)) {
 	// tracks whether current particle has stuck
 	bool stuck = false;
 	state_.add_new_particle();
@@ -96,7 +99,10 @@ void Simulation::run_simulation() {
 	}
 	if (i % progress_interval_ == 0) {
 	    std::cout << "N_plated = " << i << std::endl;
+	    std::cout << "height = " << state_.get_height() << std::endl;
 	}
+	// increment particle number
+	i++;
     }
     state_.write_xyz();
     state_.save_state();
@@ -166,7 +172,14 @@ std::string Simulation::initialize_params() {
     seed_ = std::stoi(params_map["seed"]);
 
     L_ = std::stod(params_map["L"]);
-    std::cout << "L__ = " << L_ << std::endl;
+    std::cout << "L_ = " << L_ << std::endl;
+    if (params_map.find("max_height") != params_map.end()) {
+	max_height_ = std::stod(params_map["max_height"]);
+    }
+    else {
+	max_height_ = 0;
+    }
+    std::cout << "max_height_ = " << max_height_ << std::endl;
 
     // set expected length of particle movement in 2d or 3d
     double rms_jump_size = std::stod(params_map["rms_jump_size"]);
